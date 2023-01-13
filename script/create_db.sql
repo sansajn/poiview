@@ -1,6 +1,6 @@
-create table poi (id integer primary key, lon real, lat real, name text);
+CREATE TABLE poi (id INTEGER PRIMARY KEY, lon REAL, lat REAL, name TEXT);
 
-insert into poi (lon, lat, name) values(50.1044106, 14.4499106, 'Holesovice');
+INSERT INTO poi (lon, lat, name) VALUES(50.1044106, 14.4499106, 'Holesovice');
 insert into poi (lon, lat, name) values(50.0964894, 14.4539178, 'Karlin');
 insert into poi (lon, lat, name) values(50.0847706, 14.4644267, 'Zizkov');
 insert into poi (lon, lat, name) values(50.0748011, 14.4530325, 'Vinohrady');
