@@ -43,16 +43,16 @@ class DBMain {
 
 		private fun populatePOIWithSamples(db: SQLiteDatabase) {
 			val poiSamples = listOf(
-				POIRecord(50.1044106, 14.4499106, "Holesovice"),
-				POIRecord(50.0964894, 14.4539178, "Karlin"),
-				POIRecord(50.0847706, 14.4644267, "Zizkov"),
-				POIRecord(50.0748011, 14.4530325, "Vinohrady"),
-				POIRecord(50.1175831, 14.4260389, "Troja"),
-				POIRecord(50.1255628, 14.4452650, "Kobylisy"),
-				POIRecord(50.0833386, 14.4180567, "Stare Mesto"),
-				POIRecord(50.0788497, 14.4254381, "Nove Mesto"),
-				POIRecord(50.0636178, 14.4188719, "Vysehrad"),
-				POIRecord(50.0843850, 14.4028644, "Mala Strana")
+				POIRecord(14.4499106, 50.1044106, "Holesovice"),
+				POIRecord(14.4539178, 50.0964894, "Karlin"),
+				POIRecord(14.4644267, 50.0847706, "Zizkov"),
+				POIRecord(14.4530325, 50.0748011, "Vinohrady"),
+				POIRecord(14.4260389, 50.1175831, "Troja"),
+				POIRecord(14.4452650, 50.1255628, "Kobylisy"),
+				POIRecord(14.4180567, 50.0833386, "Stare Mesto"),
+				POIRecord(14.4254381, 50.0788497, "Nove Mesto"),
+				POIRecord(14.4188719, 50.0636178, "Vysehrad"),
+				POIRecord(14.4028644, 50.0843850, "Mala Strana")
 			)
 
 			poiSamples.forEach {

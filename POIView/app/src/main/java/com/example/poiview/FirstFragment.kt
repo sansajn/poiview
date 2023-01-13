@@ -47,20 +47,35 @@ class FirstFragment : Fragment() {
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 		super.onViewCreated(view, savedInstanceState)
 
-//		binding.buttonFirst.setOnClickListener {
-//			findNavController().navigate(R.id.action_FirstFragment_to_SecondFragment)
-//		}
-
 		mapView = view.findViewById(R.id.mapView)
 		mapView?.getMapboxMap()?.loadStyleUri(
 			Style.MAPBOX_STREETS,
 			object : Style.OnStyleLoaded {
 				override fun onStyleLoaded(style: Style) {
 					Log.d("marker", "map loaded")
-					addAnotationToMap()
+					showPOIs()
 				}
 			})
+	}
 
+	private fun showPOIs() {
+		val db = DBMain(requireContext())
+		val poiCursor = db.queryPOIs()
+
+		val idColIdx = poiCursor.getColumnIndex("id")
+		val lonColIdx = poiCursor.getColumnIndex("lon")
+		val latColIdx = poiCursor.getColumnIndex("lat")
+		val nameColIdx = poiCursor.getColumnIndex("name")
+
+		// check records
+		if (poiCursor.moveToFirst()) {
+			do {
+				val lon = poiCursor.getDouble(lonColIdx)
+				val lat = poiCursor.getDouble(latColIdx)
+				addAnotationToMap(lon, lat)
+			}
+			while (poiCursor.moveToNext())
+		}
 	}
 
 	override fun onDestroyView() {
@@ -68,7 +83,7 @@ class FirstFragment : Fragment() {
 		_binding = null
 	}
 
-	private fun addAnotationToMap() {
+	private fun addAnotationToMap(lon: Double, lat: Double) {
 		// Create an instance of the Annotation API and get the PointAnnotationManager.
 		bitmapFromDrawableRes(requireContext(), R.drawable.red_marker)?.let {
 			val annotationApi = mapView?.annotations
@@ -77,7 +92,7 @@ class FirstFragment : Fragment() {
 			// Set options for the resulting symbol layer.
 			val pointAnnotationOptions: PointAnnotationOptions =
 				PointAnnotationOptions()
-					.withPoint(praguePos)  // Define a geographic coordinate.
+					.withPoint(Point.fromLngLat(lon, lat))  // Define a geographic coordinate.
 					.withIconImage(it)  // Specify the bitmap you assigned to the point annotation
 
 			// Add the resulting pointAnnotation to the map.
