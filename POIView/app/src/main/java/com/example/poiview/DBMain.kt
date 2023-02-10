@@ -20,8 +20,13 @@ class DBMain {
 	}
 
 	fun queryPois(): Cursor {
-		// TODO: we have POIRecord, should we use it there?
+		// TODO: we have PoiRecord, should we use it there?
 		return db!!.rawQuery("SELECT * FROM $poiTable", null)
+	}
+
+	fun queryGallery(): Cursor {
+		// TODO: we have GalleryRecord, should we use it there?
+		return db!!.rawQuery("SELECT * FROM $galleryTable", null)
 	}
 
 	inner class DBOpenHelper : SQLiteOpenHelper {
@@ -30,8 +35,12 @@ class DBMain {
 		}
 
 		override fun onCreate(db: SQLiteDatabase?) {
+			// create & populate poi table
 			db!!.execSQL(CREATE_TABLE_POI_SQL)
 			populatePoiWithSamples(db)
+
+			// create & populate gallery table
+			db!!.execSQL(CREATE_TABLE_GALLERY_SQL)
 			populateGalleryWithSamples(db)
 
 			// TODO: Toast can not be used in unit tests
@@ -120,5 +129,6 @@ class DBMain {
 	private val galleryPathCol = "path"
 
 	private val CREATE_TABLE_POI_SQL = "CREATE TABLE $poiTable ($poiIdCol INTEGER PRIMARY KEY, $poiLonCol REAL, $poiLatCol REAL, $poiNameCol TEXT);"
+	private val CREATE_TABLE_GALLERY_SQL = "CREATE TABLE $galleryTable ($galleryIdCol INTEGER PRIMARY KEY, $galleryLonCol REAL, $galleryLatCol REAL, $galleryDateCol INTEGER, $galleryPathCol TEXT);"
 	private var db: SQLiteDatabase? = null
 }
