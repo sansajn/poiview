@@ -45,6 +45,8 @@ class DBMain {
 
 			// TODO: Toast can not be used in unit tests
 			// Toast.makeText(context, "database created", Toast.LENGTH_LONG).show()
+
+			// TODO: log into debug channel function called
 		}
 
 		override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
