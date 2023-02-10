@@ -111,7 +111,7 @@ class DBMain {
 	}
 
 	private val dbName = "test"
-	private val dbVersion = 1
+	private val dbVersion = 2
 
 	// poi table
 	private val poiTable = "poi"
