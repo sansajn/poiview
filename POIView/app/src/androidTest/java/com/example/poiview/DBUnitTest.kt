@@ -22,7 +22,7 @@ class DBUnitTest {
 		val appContext = InstrumentationRegistry.getInstrumentation().targetContext
 
 		val db = DBMain(appContext)
-		val poiCursor = db.queryPOIs()
+		val poiCursor = db.queryPois()
 
 		val idColIdx = poiCursor.getColumnIndex("id")
 		assertTrue(idColIdx > -1)
