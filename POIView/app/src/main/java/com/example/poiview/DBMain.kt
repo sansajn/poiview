@@ -5,11 +5,12 @@ import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
 
 // Main database manipulation class.
 class DBMain {
 	data class PoiRecord(val lon: Double, val lat: Double, val name: String)
-	data class GalleryRecord(val lon: Double, val lat: Double, val date: Int, val path: String)
+	data class GalleryRecord(val lon: Double, val lat: Double, val date: Long, val path: String)
 
 	constructor(context: Context) {
 		db = DBOpenHelper(context).let {
@@ -31,17 +32,19 @@ class DBMain {
 
 	inner class DBOpenHelper : SQLiteOpenHelper {
 		constructor(context: Context) : super(context, dbName, null, dbVersion) {
+			Log.d("DBMain", "DBOpenHelper()")
 			this.context = context
 		}
 
-		override fun onCreate(db: SQLiteDatabase?) {
-			// create & populate poi table
-			db!!.execSQL(CREATE_TABLE_POI_SQL)
-			populatePoiWithSamples(db)
+		override fun onOpen(db: SQLiteDatabase?) {
+			super.onOpen(db)
 
-			// create & populate gallery table
-			db!!.execSQL(CREATE_TABLE_GALLERY_SQL)
-			populateGalleryWithSamples(db)
+			// TODO: implement all tables are present check
+		}
+
+		override fun onCreate(db: SQLiteDatabase?) {
+			Log.d("DBMain", "database created")
+			populateDb(db!!)
 
 			// TODO: Toast can not be used in unit tests
 			// Toast.makeText(context, "database created", Toast.LENGTH_LONG).show()
@@ -50,8 +53,18 @@ class DBMain {
 		}
 
 		override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
-			// TODO: this will delete all poi table records, handle different way
+			Log.d("DBMain", "database upgraded")
 			db!!.execSQL("DROP TABLE IF EXISTS $poiTable")
+			db!!.execSQL("DROP TABLE IF EXISTS $galleryTable")
+			populateDb(db)
+		}
+
+		private fun populateDb(db: SQLiteDatabase) {
+			db!!.execSQL(CREATE_TABLE_POI_SQL)
+			populatePoiWithSamples(db)
+
+			db!!.execSQL(CREATE_TABLE_GALLERY_SQL)
+			populateGalleryWithSamples(db)
 		}
 
 		private fun populatePoiWithSamples(db: SQLiteDatabase) {
@@ -113,7 +126,7 @@ class DBMain {
 	}
 
 	private val dbName = "test"
-	private val dbVersion = 2
+	private val dbVersion = 5
 
 	// poi table
 	private val poiTable = "poi"

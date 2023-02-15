@@ -1,5 +1,6 @@
 package com.example.poiview
 
+import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 
@@ -19,6 +20,7 @@ class DBUnitTest {
 
 	@Test
 	fun readFromPoiTable() {
+		Log.d("test", "test message")
 		val appContext = InstrumentationRegistry.getInstrumentation().targetContext
 
 		val db = DBMain(appContext)
@@ -95,11 +97,11 @@ class DBUnitTest {
 				val lat = poiCursor.getDouble(latColIdx)
 				assertTrue("invalid latitude coordinate", lat >= -90.0 && lat <= 90.0)
 
-				val date = poiCursor.getInt(dateColIdx)
-				assertFalse("invalid timestamp", date > 0)
+				val date = poiCursor.getLong(dateColIdx)
+				assertTrue("invalid timestamp", date > 0)
 
 				val path = poiCursor.getString(pathColIdx)
-				assertFalse("invalid path", path.startsWith("/test/photo"))
+				assertTrue("invalid path", path.startsWith("/test/photo"))
 
 				recordCount += 1
 			}
