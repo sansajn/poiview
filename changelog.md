@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- can show items from *gallery* table
 - can show points from DB on map view
 - can open sqlite database
 - can show mapbox mapview

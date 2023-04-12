@@ -1,6 +1,8 @@
 # POI view
 
-To get POIView app running configure secret token first.
+The app is written in Android studio so just open the project.
+
+To get POIView app running configure Mapbox secret token first.
 
 - Open (or create) `~/.gradle/gradle.properties`
 - define `MAPBOX_DOWNLOADS_TOKEN` variable with access token this way
@@ -11,7 +13,7 @@ MAPBOX_DOWNLOADS_TOKEN=YOUR_SECRET_MAPBOX_ACCESS_TOKEN
 
 > for access token, create Mapbox account, then go to *Tokens* section and create token with `Downloads:Read` checked in a *Secret* section.
 
-Then configure your public token.
+Then configure your public Mapbox token.
 
 > **note**: this is already done
 
