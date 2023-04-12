@@ -13,7 +13,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.DrawableRes
 import androidx.appcompat.content.res.AppCompatResources
-import androidx.navigation.fragment.findNavController
 import com.example.poiview.databinding.FragmentFirstBinding
 import com.mapbox.geojson.Point
 import com.mapbox.maps.MapView
@@ -25,7 +24,7 @@ import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 val praguePos = Point.fromLngLat(14.434564115508454, 50.08353884895491)
 
 /**
- * A simple [Fragment] subclass as the default destination in the navigation.
+ * Fragment to show POIs on mapview.
  */
 class FirstFragment : Fragment() {
 
@@ -53,14 +52,15 @@ class FirstFragment : Fragment() {
 			object : Style.OnStyleLoaded {
 				override fun onStyleLoaded(style: Style) {
 					Log.d("marker", "map loaded")
-					showPOIs()
+					//showPois()
+					showGalleryPois()
 				}
 			})
 	}
 
-	private fun showPOIs() {
+	private fun showPois() {
 		val db = DBMain(requireContext())
-		val poiCursor = db.queryPOIs()
+		val poiCursor = db.queryPois()
 
 		val idColIdx = poiCursor.getColumnIndex("id")
 		val lonColIdx = poiCursor.getColumnIndex("lon")
@@ -72,9 +72,30 @@ class FirstFragment : Fragment() {
 			do {
 				val lon = poiCursor.getDouble(lonColIdx)
 				val lat = poiCursor.getDouble(latColIdx)
-				addAnotationToMap(lon, lat)
+				addAnotationToMap(lon, lat, R.drawable.red_marker)
 			}
 			while (poiCursor.moveToNext())
+		}
+	}
+
+	private fun showGalleryPois() {
+		val db = DBMain(requireContext())
+		val galleryCursor = db.queryGallery()
+
+		// create list of column indices
+		val lonColIdx = galleryCursor.getColumnIndex("lon")
+		val latColIdx = galleryCursor.getColumnIndex("lat")
+
+		// iterate records
+		if (galleryCursor.moveToFirst()) {
+			// TODO: do we have for each algorithm? List has .forEach, cursor probably not
+			do {
+				val lon = galleryCursor.getDouble(lonColIdx)
+				val lat = galleryCursor.getDouble(latColIdx)
+				addAnotationToMap(lon, lat, R.drawable.map_pin)
+				Log.d("poiview", "gallery item (${lat}, ${lon}) added")
+			}
+			while (galleryCursor.moveToNext())
 		}
 	}
 
@@ -83,9 +104,10 @@ class FirstFragment : Fragment() {
 		_binding = null
 	}
 
-	private fun addAnotationToMap(lon: Double, lat: Double) {
+	// TODO: rename to something else e.g. insertPoiToMap
+	private fun addAnotationToMap(lon: Double, lat: Double, @DrawableRes markerResourceId: Int) {
 		// Create an instance of the Annotation API and get the PointAnnotationManager.
-		bitmapFromDrawableRes(requireContext(), R.drawable.red_marker)?.let {
+		bitmapFromDrawableRes(requireContext(), markerResourceId)?.let {
 			val annotationApi = mapView?.annotations
 			val pointAnnotationManager = annotationApi?.createPointAnnotationManager(mapView!!)
 
@@ -122,5 +144,5 @@ class FirstFragment : Fragment() {
 		}
 	}
 
-	private var mapView: MapView? = null
+	private var mapView: MapView? = null  // TODO: can we use lateinit there and avoid null type?
 }
