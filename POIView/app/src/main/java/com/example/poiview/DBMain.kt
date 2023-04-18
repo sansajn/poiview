@@ -7,7 +7,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
 
-// Main database manipulation class. TODO: try to figure out better name!
+// Main database manipulation class. TODO: try to figure out better name! AppDB?
 class DBMain {
 	data class PoiRecord(val lon: Double, val lat: Double, val name: String)
 	data class GalleryRecord(val lon: Double, val lat: Double, val date: Long, val path: String)
@@ -28,6 +28,30 @@ class DBMain {
 	fun queryGallery(): Cursor {
 		// TODO: we have GalleryRecord, should we use it there?
 		return db!!.rawQuery("SELECT * FROM $galleryTable", null)
+	}
+
+	/* param photo Photography file path. */
+	fun inGallery(photo: String): Boolean {
+		val cursor = db!!.rawQuery("SELECT id FROM $galleryTable WHERE path=?", arrayOf<String>(photo))
+		return cursor.count != 0
+	}
+
+	fun addToGallery(item: GalleryRecord) {
+		insertGallery(db!!, item)
+		// TODO: no mechanism to let all know insert failed
+	}
+
+	private fun insertGallery(db: SQLiteDatabase, item: GalleryRecord) {
+		val values = ContentValues()
+		with(values) {
+			put(galleryLonCol, item.lon)
+			put(galleryLatCol, item.lat)
+			put(galleryDateCol, item.date)
+			put(galleryPathCol, item.path)
+		}
+
+		val id = db!!.insert(galleryTable, null, values)
+		assert(id != -1L){"inserting '${item.path}' record to $galleryTable table failed"}
 	}
 
 	inner class DBOpenHelper : SQLiteOpenHelper {
@@ -109,20 +133,11 @@ class DBMain {
 			)
 
 			gallerySamples.forEach {
-				val values = ContentValues()
-				with(values) {
-					put(galleryLonCol, it.lon)
-					put(galleryLatCol, it.lat)
-					put(galleryDateCol, it.date)
-					put(galleryPathCol, it.path)
-				}
-
-				val id = db?.insert(galleryTable, null, values)
-				assert(id != -1L){"inserting '${it.path}' record to $galleryTable table failed"}
+				insertGallery(db, it)
 			}
 		}
 
-		var context: Context? = null
+		private var context: Context? = null
 	}
 
 	private val dbName = "test"
