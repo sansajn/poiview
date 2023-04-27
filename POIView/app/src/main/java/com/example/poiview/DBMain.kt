@@ -7,7 +7,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
 
-// Main database manipulation class. TODO: try to figure out better name! AppDB?
+// Application main database manipulation class. TODO: try to figure out better name! db.App?
 class DBMain {
 	data class PoiRecord(val lon: Double, val lat: Double, val name: String)
 	data class GalleryRecord(val lon: Double, val lat: Double, val date: Long, val path: String)
@@ -21,11 +21,16 @@ class DBMain {
 	}
 
 	fun queryPois(): Cursor {
+		// TODO: cursor needs to be closed with close() call, which needs to be done on caller side poor implementation
+
 		// TODO: we have PoiRecord, should we use it there?
 		return db!!.rawQuery("SELECT * FROM $poiTable", null)
 	}
 
+	/* Get gallery content as Cursor. */
 	fun queryGallery(): Cursor {
+		// TODO: cursor needs to be closed with close() call, which needs to be done on caller side poor implementation
+
 		// TODO: we have GalleryRecord, should we use it there?
 		return db!!.rawQuery("SELECT * FROM $galleryTable", null)
 	}
@@ -33,7 +38,9 @@ class DBMain {
 	/* param photo Photography file path. */
 	fun inGallery(photo: String): Boolean {
 		val cursor = db!!.rawQuery("SELECT id FROM $galleryTable WHERE path=?", arrayOf<String>(photo))
-		return cursor.count != 0
+		val found = cursor.count != 0
+		cursor.close()
+		return found
 	}
 
 	fun addToGallery(item: GalleryRecord) {
@@ -41,9 +48,28 @@ class DBMain {
 		// TODO: no mechanism to let all know insert failed
 	}
 
+	/* pram id gallery item id of  photography
+	throws an exception in case photography ID not found in gallery table */
+	fun getPhotoPath(id: Long): String {  // TODO: do we have path type?
+		val cursor = db!!.rawQuery("SELECT path FROM $galleryTable WHERE id=?", arrayOf<String>(id.toString()))
+		assert(cursor.count > 0)
+
+		val pathIdx = cursor.getColumnIndex("path")
+		assert(pathIdx != -1)
+
+		return if (cursor.moveToFirst()) {
+			val path = cursor.getString(pathIdx)
+			cursor.close()
+			path
+		}
+		else {
+			// TODO: resource leek in case of exception we need to call cursor.close()
+			throw Exception("photo id=$id not found in gallery table")
+		}
+	}
+
 	private fun insertGallery(db: SQLiteDatabase, item: GalleryRecord) {
-		val values = ContentValues()
-		with(values) {
+		val values = ContentValues().apply {
 			put(galleryLonCol, item.lon)
 			put(galleryLatCol, item.lat)
 			put(galleryDateCol, item.date)

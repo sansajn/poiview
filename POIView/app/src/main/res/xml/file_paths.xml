@@ -1,0 +1,6 @@
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- To access photos from gallery folder e.g. /storage/emulated/0/DCIM/20230407_175246.jpg -->
+    <external-path
+        name="external_path"
+        path="." />
+</paths>

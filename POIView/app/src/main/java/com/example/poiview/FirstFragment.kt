@@ -9,6 +9,7 @@ import android.graphics.drawable.Drawable
 import android.media.ExifInterface
 import android.os.Bundle
 import android.os.Environment
+import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
 import androidx.fragment.app.Fragment
@@ -19,6 +20,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.appcompat.content.res.AppCompatResources
 import com.example.poiview.databinding.FragmentFirstBinding
+import com.example.poiview.map.OnMarkerClick
+import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
 import com.mapbox.geojson.Point
 import com.mapbox.maps.MapView
 import com.mapbox.maps.Style
@@ -26,10 +30,11 @@ import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import java.io.File
-import java.sql.Timestamp
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import kotlin.system.measureNanoTime
+import kotlin.system.measureTimeMillis
 
 val praguePos = Point.fromLngLat(14.434564115508454, 50.08353884895491)
 
@@ -55,6 +60,9 @@ class FirstFragment : Fragment() {
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 		super.onViewCreated(view, savedInstanceState)
+
+		// database initialisation
+		_db = DBMain(requireContext())
 
 		mapView = view.findViewById(R.id.mapView)  // TODO: use bindings there
 		mapView?.getMapboxMap()?.loadStyleUri(
@@ -119,45 +127,54 @@ class FirstFragment : Fragment() {
 
 	// feed gallery DB with photo gallery content
 	private fun feedDbWithPhotoGalleryContent() {
-		val photos = listGalleryFolder()
-		Log.d(TAG, "photo-count=${photos.size}")
-		val db = DBMain(requireContext())
+		// TODO: take just first 1000 photos to prevent ANR error
+		val photos = (listGalleryFolder() + listSdCardGalleryFolder()).take(1000)
+		Log.d(TAG, "gallery-folder-photos=${photos.size}")
 
-		photos.forEach {
-			val path = it
-			if (path.endsWith(".jpg")) {
-				if (!db.inGallery(it)) {
-					val exif = ExifInterface(path)
+		val elapsed = measureTimeMillis {
+			photos.forEach {
+				val path = it
+				if (path.endsWith(".jpg")) {
+					if (!_db!!.inGallery(it)) {
+						val exif = ExifInterface(path)
 
-					// read GPS position from photo
-					val lonStr = exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE)
-					val lonRef = exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE_REF)
-					val lon: Double = parseExifGPSCoordinate(lonStr!!, lonRef!!)
+						// read GPS position from photo
+						val lonStr = exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE)
+						val lonRef = exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE_REF)
+						if (lonStr == null || lonRef == null)
+							return@forEach
+						val lon: Double = parseExifGPSCoordinate(lonStr, lonRef)
 
-					val latStr = exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE)
-					val latRef = exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE_REF)
-					val lat: Double = parseExifGPSCoordinate(latStr!!, latRef!!)
+						val latStr = exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE)
+						val latRef = exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE_REF)
+						if (latStr == null || latRef == null)
+							return@forEach
+						val lat: Double = parseExifGPSCoordinate(latStr, latRef)
 
-					// read creation date from photo
-					val dateTimeOriginalAttr = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
-					val offsetTimeOriginalAttr = exif.getAttribute(ExifInterface.TAG_OFFSET_TIME_ORIGINAL)
-					val timestamp = parseExifDateTime(dateTimeOriginalAttr!!, offsetTimeOriginalAttr!!)
+						// read creation date from photo
+						val dateTimeOriginalAttr = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
+						val offsetTimeOriginalAttr =
+							exif.getAttribute(ExifInterface.TAG_OFFSET_TIME_ORIGINAL)
+						if (dateTimeOriginalAttr == null || offsetTimeOriginalAttr == null)
+							return@forEach
+						val timestamp = parseExifDateTime(dateTimeOriginalAttr, offsetTimeOriginalAttr)
 
-					// TODO: skip photos without GPS and TimeOriginal tags ...
-					val galleryItem = DBMain.GalleryRecord(lon, lat, timestamp, it)
-					db.addToGallery(galleryItem)
+						val galleryItem = DBMain.GalleryRecord(lon, lat, timestamp, it)
+						_db!!.addToGallery(galleryItem)
 
-					Log.d(TAG, "($lat, $lon), $dateTimeOriginalAttr ($timestamp) -> $it")
+						Log.d(TAG, "($lat, $lon), $dateTimeOriginalAttr ($timestamp) -> $it")
+					}
+//					else
+//						Log.d(TAG, "$it item already found in gallery table")
 				}
-				else
-					Log.d(TAG, "$it item already found in gallery table")
 			}
 		}
+
+		Log.d(TAG, "gallery DB update: ${elapsed}ms")
 	}
 
 	private fun showPois() {
-		val db = DBMain(requireContext())
-		val poiCursor = db.queryPois()
+		val poiCursor = _db!!.queryPois()
 
 		val idColIdx = poiCursor.getColumnIndex("id")
 		val lonColIdx = poiCursor.getColumnIndex("lon")
@@ -169,19 +186,29 @@ class FirstFragment : Fragment() {
 			do {
 				val lon = poiCursor.getDouble(lonColIdx)
 				val lat = poiCursor.getDouble(latColIdx)
-				addAnotationToMap(lon, lat, R.drawable.red_marker)
+				val id = poiCursor.getLong(idColIdx)
+
+				// TODO: optimize JSON structure (what way?)
+				val poiData = JsonObject().apply {
+					add("table", JsonPrimitive("poi"))  // TODO: we should not refer to poi table by string (this can change)
+					add("id", JsonPrimitive(id))
+				}
+
+				addPoiToMap(lon, lat, poiData, R.drawable.marker_empty)
 			}
 			while (poiCursor.moveToNext())
 		}
+
+		poiCursor.close()
 	}
 
 	private fun showGalleryPois() {
-		val db = DBMain(requireContext())
-		val galleryCursor = db.queryGallery()
+		val galleryCursor = _db!!.queryGallery()
 
 		// create list of column indices
 		val lonColIdx = galleryCursor.getColumnIndex("lon")
 		val latColIdx = galleryCursor.getColumnIndex("lat")
+		val idColIdx = galleryCursor.getColumnIndex("id")
 
 		// iterate records
 		if (galleryCursor.moveToFirst()) {
@@ -189,24 +216,73 @@ class FirstFragment : Fragment() {
 			do {
 				val lon = galleryCursor.getDouble(lonColIdx)
 				val lat = galleryCursor.getDouble(latColIdx)
-				addAnotationToMap(lon, lat, R.drawable.map_pin)
-				Log.d("poiview", "gallery item (${lat}, ${lon}) added to map")
+				val id = galleryCursor.getInt(idColIdx)
+
+				// TODO: restrict pois to 500 otherwise mapview is too much slow
+				if (id > 500)
+					break
+
+				val poiData = JsonObject().apply {
+					add("table", JsonPrimitive("gallery"))
+					add("id", JsonPrimitive(id))
+				}
+
+				addPoiToMap(lon, lat, poiData, R.drawable.marker_camera)
+				Log.d(TAG, "gallery item id=$id ($lat, $lon) added to map")
 			}
 			while (galleryCursor.moveToNext())
 		}
+
+		galleryCursor.close()
 	}
 
-	// TODO: this will be moved out
-	private fun listGalleryFolder(): ArrayList<String> {
-		val galleryFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
-		Log.d(TAG, "gallery=${galleryFolder.absolutePath}")
+	// TODO: moved out gallery stuff
 
-		// TODO: make this function better!!
+	/** Lists internal gallery folder. */
+	private fun listGalleryFolder(): ArrayList<String> {
+		val galleryFolder =
+			Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
+
 		val result = arrayListOf<String>()
-		File(galleryFolder.absolutePath).walk().forEach {
-			Log.d(TAG, it.absolutePath) // TODO: fill text view instead of log
-			result.add(it.absolutePath)
+
+		val elapsed = measureTimeMillis {
+			// TODO: this seems to be work for map, not forEach
+			File(galleryFolder.absolutePath).walk().forEach {
+				result.add(it.absolutePath)
+			}
 		}
+
+		Log.d(TAG, "listing internal gallery folder (${galleryFolder.absolutePath}): ${elapsed}ms")
+
+		Log.d(TAG, "")
+
+		return result
+	}
+
+	/** Lists SD Card gallery folder (e.g. /storage/9C33-6BBD/DCIM) */
+	private fun listSdCardGalleryFolder(): ArrayList<String> {
+		// figure out DCIM path e.g. /storage/9C33-6BBD/DCIM
+		val externalVolumes = MediaStore.getExternalVolumeNames(requireContext())
+		val sdCardVolumes = externalVolumes.filter {
+			it != MediaStore.VOLUME_EXTERNAL_PRIMARY && it != MediaStore.VOLUME_EXTERNAL
+		}
+		if (sdCardVolumes.isEmpty())  // no SD Card
+			return arrayListOf<String>()
+
+		// TODO: for now just take the firs one SD Card in system
+		val sdCardDcimPath = "/storage/${sdCardVolumes[0].uppercase()}/DCIM"
+		Log.d("main", "sdCardDcimPath=$sdCardDcimPath")
+
+		val result = arrayListOf<String>()
+
+		val elapsed = measureTimeMillis {
+			// TODO: this seems to be work for map, not forEach
+			File(sdCardDcimPath).walk().forEach {
+				result.add(it.absolutePath)
+			}
+		}
+
+		Log.d(TAG, "listing SD Card gallery folder ($sdCardDcimPath): ${elapsed}ms")
 
 		return result
 	}
@@ -217,17 +293,21 @@ class FirstFragment : Fragment() {
 	}
 
 	// TODO: rename to something else e.g. insertPoiToMap
-	private fun addAnotationToMap(lon: Double, lat: Double, @DrawableRes markerResourceId: Int) {
+	private fun addPoiToMap(lon: Double, lat: Double, poiData: JsonObject, @DrawableRes markerResourceId: Int) {
 		// Create an instance of the Annotation API and get the PointAnnotationManager.
 		bitmapFromDrawableRes(requireContext(), markerResourceId)?.let {
 			val annotationApi = mapView?.annotations
+
+			// TODO: what scope function can I use there to handle manager?
 			val pointAnnotationManager = annotationApi?.createPointAnnotationManager(mapView!!)
+			pointAnnotationManager?.addClickListener(OnMarkerClick(_db!!, this))  // TODO: OnPointAnnotationClickListener implementation goes there
 
 			// Set options for the resulting symbol layer.
 			val pointAnnotationOptions: PointAnnotationOptions =
 				PointAnnotationOptions()
 					.withPoint(Point.fromLngLat(lon, lat))  // Define a geographic coordinate.
 					.withIconImage(it)  // Specify the bitmap you assigned to the point annotation
+					.withData(poiData)
 
 			// Add the resulting pointAnnotation to the map.
 			pointAnnotationManager?.create(pointAnnotationOptions)
@@ -256,15 +336,13 @@ class FirstFragment : Fragment() {
 		}
 	}
 
-	private var mapView: MapView? = null  // TODO: can we use lateinit there and avoid null type?
-
 	// permission stuff TODO: move it into own file
-
 	private fun requestPermission() {
 		Log.d(TAG, "requestPermission(ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)")
-		val intent = Intent()
-		intent.action = Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
-		storageActivityResultLauncher.launch(intent)
+		with(Intent()) {
+			action = Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
+			storageActivityResultLauncher.launch(this)
+		}
 	}
 
 	// this is called after external storage access granted
@@ -283,6 +361,9 @@ class FirstFragment : Fragment() {
 	}
 
 	companion object {
-		val TAG = "poiview"
+		val TAG = "mapview"
 	}
+
+	private var mapView: MapView? = null  // TODO: can we use lateinit there and avoid null type?
+	private var _db: DBMain? = null  // TODO: any way to avoid nullable type and var
 }
