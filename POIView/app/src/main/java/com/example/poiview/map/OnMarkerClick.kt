@@ -28,12 +28,11 @@ class OnMarkerClick(val db: DBMain, val parentFragment: Fragment): OnPointAnnota
 			val photoUri = FileProvider.getUriForFile(parentFragment.requireContext(), GALLERY_AUTHORITY, File(photoPath))
 			Log.d(TAG, "photoUri=$photoUri")
 
-			val intent = Intent(Intent.ACTION_VIEW).apply {
+			with (Intent(Intent.ACTION_VIEW)) {
 				data = photoUri
 				flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+				parentFragment.startActivity(this)
 			}
-
-			parentFragment.startActivity(intent)
 		}
 
 		return true

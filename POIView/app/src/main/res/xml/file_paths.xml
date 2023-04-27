@@ -1,6 +1,13 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- To access photos from gallery folder e.g. /storage/emulated/0/DCIM/20230407_175246.jpg -->
+    <!-- see [FileProvider](https://developer.android.com/reference/kotlin/androidx/core/content/FileProvider) -->
+
+    <!-- To access photos from internal gallery folder e.g. /storage/emulated/0/DCIM/20230407_175246.jpg -->
     <external-path
         name="external_path"
         path="." />
+
+    <!-- To access photos from internal gallery folder e.g. /storage/12FD-0E09/DCIM/20230326_112234.jpg -->
+    <root-path
+        name="sdcard_files"
+        path="/storage/" />
 </paths>
