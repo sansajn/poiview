@@ -250,6 +250,7 @@ class FirstFragment : Fragment() {
 					add("id", JsonPrimitive(id))
 				}
 
+				// TODO: this should be also rewritten using layer as in a case of gallery POIs
 				addPoiToMap(lon, lat, poiData, _poiIcon)
 			}
 			while (poiCursor.moveToNext())
