@@ -20,23 +20,27 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.appcompat.content.res.AppCompatResources
 import com.example.poiview.databinding.FragmentFirstBinding
+import com.example.poiview.map.GalleryLayer
 import com.example.poiview.map.OnMarkerClick
+import com.example.poiview.map.SampleClusterLayer
+import com.example.poiview.map.SampleLineLayer
+import com.example.poiview.map.SampleSymbolLayer
 import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
 import com.mapbox.geojson.Point
-import com.mapbox.maps.MapView
+import com.mapbox.maps.RenderedQueryGeometry
+import com.mapbox.maps.RenderedQueryOptions
 import com.mapbox.maps.Style
 import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
+import com.mapbox.maps.plugin.gestures.OnMapClickListener
+import com.mapbox.maps.plugin.gestures.addOnMapClickListener
 import java.io.File
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-import kotlin.system.measureNanoTime
 import kotlin.system.measureTimeMillis
-
-val praguePos = Point.fromLngLat(14.434564115508454, 50.08353884895491)
 
 /**
  * Fragment to show POIs on mapview.
@@ -61,19 +65,71 @@ class FirstFragment : Fragment() {
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 		super.onViewCreated(view, savedInstanceState)
 
-		// database initialisation
-		_db = DBMain(requireContext())
+		_db = DBMain(requireContext())  // database initialisation
 
-		mapView = view.findViewById(R.id.mapView)  // TODO: use bindings there
-		mapView?.getMapboxMap()?.loadStyleUri(
+		// icons
+		_photoIcon = loadIcon(R.drawable.marker_camera)
+		_poiIcon = loadIcon(R.drawable.marker_empty)
+		_loveIcon = loadIcon(R.drawable.marker_love)
+		_starIcon = loadIcon(R.drawable.marker_star)
+		_jewelryIcon = loadIcon(R.drawable.marker_jewelry)
+
+		binding.mapView.getMapboxMap()?.loadStyleUri(
 			Style.MAPBOX_STREETS,
 			object : Style.OnStyleLoaded {
 				override fun onStyleLoaded(style: Style) {
 					Log.d(TAG, "map loaded")
-					showPois()
-					showGalleryPois()
+					_galleryLayer = GalleryLayer(style, _photoIcon,
+						GalleryPhotoShow(_db!!, this@FirstFragment))
+
+					val elapsedPois = measureTimeMillis {
+						showPois()
+					}
+					Log.d(TAG, "showing POIs: ${elapsedPois}ms")
+
+					val elapsedGallery = measureTimeMillis {
+						showGalleryPois()
+					}
+					Log.d(TAG, "showing gallery: ${elapsedGallery}ms")
+
+					SampleLineLayer(style)
+					SampleSymbolLayer(style, _loveIcon)
+					SampleClusterLayer(style, _starIcon)
+
+					// TODO: just for testing purpose
+//					val pt = _galleryLayer.samplePois[0]
+//					_galleryLayer.addPhoto(pt.longitude(), pt.latitude(), JsonObject())
 				}
 			})
+
+		val map = binding.mapView.getMapboxMap()
+		if (map != null) {
+			map.addOnMapClickListener(
+				object : OnMapClickListener {
+					override fun onMapClick(point: Point): Boolean {
+						// TODO: get list of clicked features ...
+						val screenPoint = map.pixelForCoordinate(point)
+
+						map.queryRenderedFeatures(
+							RenderedQueryGeometry(screenPoint),
+							RenderedQueryOptions(listOf(GalleryLayer.LAYER_ID), null)
+						) {
+
+							if (!it.isValue || it.value!!.isEmpty())
+								return@queryRenderedFeatures
+
+							Log.d(TAG, it.value.toString())
+
+							val selectedFeature = it.value!![0].feature
+							_galleryLayer.onPoiClicked(selectedFeature)
+						}
+
+						Log.d(TAG, "map clicked ...")
+						return true
+					}
+				}
+			)
+		}
 
 		// TODO: shouldn't be permission check part of the listGalleryFolder function?
 		// check for external storage (all files) permission
@@ -89,7 +145,7 @@ class FirstFragment : Fragment() {
 	}
 
 	/* param coord longitude or latitude EXIF GPS coordinate string (e.g. "16/1,29/1,3477119/1000000").
-	param ref logitude/latitude reference (hemisphere) */
+	param ref longitude/latitude reference (hemisphere) */
 	private fun parseExifGPSCoordinate(coord: String, ref: String): Double {
 		val coordExpr =
 			Regex("""^(?<degNum>\d+)\/(?<degDenom>\d+),(?<minNum>\d+)\/(?<minDenom>\d+),(?<secNum>\d+)\/(?<secDenom>\d+)$""")
@@ -194,7 +250,7 @@ class FirstFragment : Fragment() {
 					add("id", JsonPrimitive(id))
 				}
 
-				addPoiToMap(lon, lat, poiData, R.drawable.marker_empty)
+				addPoiToMap(lon, lat, poiData, _poiIcon)
 			}
 			while (poiCursor.moveToNext())
 		}
@@ -218,17 +274,19 @@ class FirstFragment : Fragment() {
 				val lat = galleryCursor.getDouble(latColIdx)
 				val id = galleryCursor.getInt(idColIdx)
 
-				// TODO: restrict pois to 500 otherwise mapview is too much slow
-				if (id > 500)
-					break
-
 				val poiData = JsonObject().apply {
 					add("table", JsonPrimitive("gallery"))
 					add("id", JsonPrimitive(id))
 				}
 
-				addPoiToMap(lon, lat, poiData, R.drawable.marker_camera)
-				Log.d(TAG, "gallery item id=$id ($lat, $lon) added to map")
+				// TODO: restrict POIs to 500 otherwise mapview is too much slow
+				if (id > 1000)
+					break
+
+//				addPoiToMap(lon, lat, poiData, _photoIcon)  // TODO: remove, replaced by gallery-layer
+				_galleryLayer.addPhoto(lon, lat, poiData)
+
+//				Log.d(TAG, "gallery item id=$id ($lat, $lon) added to map")
 			}
 			while (galleryCursor.moveToNext())
 		}
@@ -253,8 +311,6 @@ class FirstFragment : Fragment() {
 		}
 
 		Log.d(TAG, "listing internal gallery folder (${galleryFolder.absolutePath}): ${elapsed}ms")
-
-		Log.d(TAG, "")
 
 		return result
 	}
@@ -292,27 +348,27 @@ class FirstFragment : Fragment() {
 		_binding = null
 	}
 
-	// TODO: rename to something else e.g. insertPoiToMap
-	private fun addPoiToMap(lon: Double, lat: Double, poiData: JsonObject, @DrawableRes markerResourceId: Int) {
+	private fun addPoiToMap(lon: Double, lat: Double, poiData: JsonObject, poiIcon: Bitmap) {
 		// Create an instance of the Annotation API and get the PointAnnotationManager.
-		bitmapFromDrawableRes(requireContext(), markerResourceId)?.let {
-			val annotationApi = mapView?.annotations
+		val annotationApi = binding.mapView.annotations
 
-			// TODO: what scope function can I use there to handle manager?
-			val pointAnnotationManager = annotationApi?.createPointAnnotationManager(mapView!!)
-			pointAnnotationManager?.addClickListener(OnMarkerClick(_db!!, this))  // TODO: OnPointAnnotationClickListener implementation goes there
+		// TODO: what scope function can I use there to handle manager?
+		val pointAnnotationManager = annotationApi.createPointAnnotationManager(binding.mapView)
+		pointAnnotationManager.addClickListener(OnMarkerClick(_db!!, this))  // TODO: OnPointAnnotationClickListener implementation goes there
 
-			// Set options for the resulting symbol layer.
-			val pointAnnotationOptions: PointAnnotationOptions =
-				PointAnnotationOptions()
-					.withPoint(Point.fromLngLat(lon, lat))  // Define a geographic coordinate.
-					.withIconImage(it)  // Specify the bitmap you assigned to the point annotation
-					.withData(poiData)
+		// Set options for the resulting symbol layer.
+		val pointAnnotationOptions: PointAnnotationOptions =
+			PointAnnotationOptions()
+				.withPoint(Point.fromLngLat(lon, lat))  // Define a geographic coordinate.
+				.withIconImage(poiIcon)  // Specify the bitmap you assigned to the point annotation
+				.withData(poiData)
 
-			// Add the resulting pointAnnotation to the map.
-			pointAnnotationManager?.create(pointAnnotationOptions)
-		}
+		// Add the resulting pointAnnotation to the map.
+		pointAnnotationManager.create(pointAnnotationOptions)
 	}
+
+	private fun loadIcon(@DrawableRes markerResourceId: Int): Bitmap =
+		bitmapFromDrawableRes(requireContext(), markerResourceId)!!
 
 	private fun bitmapFromDrawableRes(context: Context, @DrawableRes resourceId: Int) = convertDrawableToBitmap(
 		AppCompatResources.getDrawable(context, resourceId))
@@ -361,9 +417,14 @@ class FirstFragment : Fragment() {
 	}
 
 	companion object {
-		val TAG = "mapview"
+		const val TAG = "FirstFragment"
 	}
 
-	private var mapView: MapView? = null  // TODO: can we use lateinit there and avoid null type?
 	private var _db: DBMain? = null  // TODO: any way to avoid nullable type and var
+	private lateinit var _photoIcon: Bitmap
+	private lateinit var _poiIcon: Bitmap
+	private lateinit var _loveIcon: Bitmap
+	private lateinit var _starIcon: Bitmap
+	private lateinit var _jewelryIcon: Bitmap
+	private lateinit var _galleryLayer: GalleryLayer
 }
