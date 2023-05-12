@@ -9,6 +9,8 @@ import android.graphics.drawable.Drawable
 import android.media.ExifInterface
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
@@ -31,6 +33,7 @@ import com.mapbox.geojson.Point
 import com.mapbox.maps.RenderedQueryGeometry
 import com.mapbox.maps.RenderedQueryOptions
 import com.mapbox.maps.Style
+import com.mapbox.maps.extension.style.expressions.dsl.generated.boolean
 import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
@@ -40,6 +43,8 @@ import java.io.File
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.system.measureTimeMillis
 
 /**
@@ -87,18 +92,21 @@ class FirstFragment : Fragment() {
 					}
 					Log.d(TAG, "showing POIs: ${elapsedPois}ms")
 
-					val elapsedGallery = measureTimeMillis {
-						showGalleryPois()
-					}
-					Log.d(TAG, "showing gallery: ${elapsedGallery}ms")
-
 					SampleLineLayer(style)
 					SampleSymbolLayer(style, _loveIcon)
 					SampleClusterLayer(style, _starIcon)
 
-					// TODO: just for testing purpose
-//					val pt = _galleryLayer.samplePois[0]
-//					_galleryLayer.addPhoto(pt.longitude(), pt.latitude(), JsonObject())
+					// TODO: shouldn't be permission check part of the listGalleryFolder function?
+					// check for external storage (all files) permission
+					if (checkPermission()) {
+						Log.d(TAG, "external storage permission already granted")
+						executeShowPhotoGalleryPipeline()
+					}
+					else {
+						Log.d(TAG, "external storage permission not granted, request")
+						requestPermission()
+						// TODO: are we continue from there after permission granted?
+					}
 				}
 			})
 
@@ -129,18 +137,6 @@ class FirstFragment : Fragment() {
 					}
 				}
 			)
-		}
-
-		// TODO: shouldn't be permission check part of the listGalleryFolder function?
-		// check for external storage (all files) permission
-		if (checkPermission()) {
-			Log.d(TAG, "external storage permission already granted")
-			feedDbWithPhotoGalleryContent()
-		}
-		else {
-			Log.d(TAG, "external storage permission not granted, request")
-			requestPermission()
-			// TODO: are we continue from there after permission granted?
 		}
 	}
 
@@ -182,7 +178,7 @@ class FirstFragment : Fragment() {
 	}
 
 	// feed gallery DB with photo gallery content
-	private fun feedDbWithPhotoGalleryContent() {
+	private fun feedDbWithPhotoGalleryContent() {  // TODO: this function touch private member in a separate thread it should be definitely moved from outside the Fragment
 		// TODO: take just first 1000 photos to prevent ANR error
 		val photos = (listGalleryFolder() + listSdCardGalleryFolder()).take(1000)
 		Log.d(TAG, "gallery-folder-photos=${photos.size}")
@@ -295,7 +291,7 @@ class FirstFragment : Fragment() {
 		galleryCursor.close()
 	}
 
-	// TODO: moved out gallery stuff
+	// TODO: move out gallery stuff
 
 	/** Lists internal gallery folder. */
 	private fun listGalleryFolder(): ArrayList<String> {
@@ -402,11 +398,30 @@ class FirstFragment : Fragment() {
 		}
 	}
 
+	/** Executes pipeline showing photography gallery on map. */
+	private fun executeShowPhotoGalleryPipeline() {  // TODO: not sure about function name find something bether
+		val executor = Executors.newSingleThreadExecutor()
+
+		val handler = Handler(Looper.getMainLooper())
+
+		executor.execute {
+			feedDbWithPhotoGalleryContent()
+			handler.post {
+				val elapsedGallery = measureTimeMillis {
+					showGalleryPois()
+				}
+				Log.d(TAG, "showing gallery: ${elapsedGallery}ms")
+			}
+		}
+
+		executor.shutdown()
+	}
+
 	// this is called after external storage access granted
 	private val storageActivityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
 		if (checkPermission()) {
 			Log.d(TAG, "external storage permission granted")
-			feedDbWithPhotoGalleryContent()
+			executeShowPhotoGalleryPipeline()
 		}
 		else {
 			Log.d(TAG, "external storage permission denied")
