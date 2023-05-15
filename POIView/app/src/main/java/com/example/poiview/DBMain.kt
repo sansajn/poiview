@@ -27,7 +27,7 @@ class DBMain {
 		return db!!.rawQuery("SELECT * FROM $poiTable", null)
 	}
 
-	/* Get gallery content as Cursor. */
+	/* Get gallery table content as Cursor. */
 	fun queryGallery(): Cursor {
 		// TODO: cursor needs to be closed with close() call, which needs to be done on caller side poor implementation
 
@@ -35,17 +35,33 @@ class DBMain {
 		return db!!.rawQuery("SELECT * FROM $galleryTable", null)
 	}
 
-	/* param photo Photography file path. */
-	fun inGallery(photo: String): Boolean {
-		val cursor = db!!.rawQuery("SELECT id FROM $galleryTable WHERE path=?", arrayOf<String>(photo))
-		val found = cursor.count != 0
-		cursor.close()
-		return found
+	fun queryGallery(ids: ArrayList<Long>): Cursor {
+		// TODO: cursor needs to be closed with close() call, which needs to be done on caller side poor implementation
+		return db!!.rawQuery("SELECT * FROM $galleryTable WHERE id IN (${ids.joinToString(",")})", null)
 	}
 
-	fun addToGallery(item: GalleryRecord) {
-		insertGallery(db!!, item)
-		// TODO: no mechanism to let all know insert failed
+	/** @param photo Photography file path. */
+	fun inGallery(photo: String): Boolean {
+		return galleryPhotoId(photo) != -1L
+	}
+
+	/** @param photo Photo file path.
+	 * @returns photo ID or -1L in case photo is not in table. */
+	fun galleryPhotoId(photo: String): Long {
+		val cursor = db!!.rawQuery("SELECT id FROM $galleryTable WHERE path=?", arrayOf<String>(photo))
+		val id = if (cursor.moveToFirst()) {
+			cursor.getLong(cursor.getColumnIndexOrThrow("id"))
+		} else -1L
+
+		cursor.close()
+
+		return id
+	}
+
+	/** Adds image into gallery DB.
+	 * @return new record id, in case of error -1L is returned. */
+	fun addToGallery(item: GalleryRecord): Long {
+		return insertGallery(db!!, item)
 	}
 
 	/* pram id gallery item id of  photography
@@ -68,7 +84,8 @@ class DBMain {
 		}
 	}
 
-	private fun insertGallery(db: SQLiteDatabase, item: GalleryRecord) {
+	/***/
+	private fun insertGallery(db: SQLiteDatabase, item: GalleryRecord): Long {
 		val values = ContentValues().apply {
 			put(galleryLonCol, item.lon)
 			put(galleryLatCol, item.lat)
@@ -76,8 +93,10 @@ class DBMain {
 			put(galleryPathCol, item.path)
 		}
 
+		// note: following only works for INTEGER PRIMARY KEY tables where rowid is the same as key.
 		val id = db!!.insert(galleryTable, null, values)
 		assert(id != -1L){"inserting '${item.path}' record to $galleryTable table failed"}
+		return id
 	}
 
 	inner class DBOpenHelper : SQLiteOpenHelper {
@@ -186,5 +205,5 @@ class DBMain {
 
 	private val CREATE_TABLE_POI_SQL = "CREATE TABLE $poiTable ($poiIdCol INTEGER PRIMARY KEY, $poiLonCol REAL, $poiLatCol REAL, $poiNameCol TEXT);"
 	private val CREATE_TABLE_GALLERY_SQL = "CREATE TABLE $galleryTable ($galleryIdCol INTEGER PRIMARY KEY, $galleryLonCol REAL, $galleryLatCol REAL, $galleryDateCol INTEGER, $galleryPathCol TEXT);"
-	private var db: SQLiteDatabase? = null
+	private var db: SQLiteDatabase? = null  // TODO: I want to distinguish between read and write access
 }

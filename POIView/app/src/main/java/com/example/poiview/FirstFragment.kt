@@ -6,7 +6,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
-import android.media.ExifInterface
 import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
@@ -33,18 +32,14 @@ import com.mapbox.geojson.Point
 import com.mapbox.maps.RenderedQueryGeometry
 import com.mapbox.maps.RenderedQueryOptions
 import com.mapbox.maps.Style
-import com.mapbox.maps.extension.style.expressions.dsl.generated.boolean
 import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import com.mapbox.maps.plugin.gestures.OnMapClickListener
 import com.mapbox.maps.plugin.gestures.addOnMapClickListener
 import java.io.File
-import java.time.LocalDateTime
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
+import java.nio.file.Path
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import kotlin.system.measureTimeMillis
 
 /**
@@ -140,91 +135,6 @@ class FirstFragment : Fragment() {
 		}
 	}
 
-	/* param coord longitude or latitude EXIF GPS coordinate string (e.g. "16/1,29/1,3477119/1000000").
-	param ref longitude/latitude reference (hemisphere) */
-	private fun parseExifGPSCoordinate(coord: String, ref: String): Double {
-		val coordExpr =
-			Regex("""^(?<degNum>\d+)\/(?<degDenom>\d+),(?<minNum>\d+)\/(?<minDenom>\d+),(?<secNum>\d+)\/(?<secDenom>\d+)$""")
-
-		val matchResult = coordExpr.matchEntire(coord)
-
-		matchResult?.let {
-			val degNum = it.groups["degNum"]!!.value.toInt()
-			val degDenom = it.groups["degDenom"]!!.value.toInt()
-			val minNum = it.groups["minNum"]!!.value.toInt()
-			val minDenom = it.groups["minDenom"]!!.value.toInt()
-			val secNum = it.groups["secNum"]!!.value.toInt()
-			val secDenom = it.groups["secDenom"]!!.value.toInt()
-
-			var coordDeg: Double =
-				degNum / degDenom + minNum / minDenom / 60.0 + secNum / secDenom / 3600.0
-			if (ref == "W" || ref == "S")
-				coordDeg *= -1
-
-			return coordDeg
-		}
-
-		throw Exception("exception '${coord}' can't be parsed")  // we expect this will not happen
-	}
-
-	/* param dateTime One of the DateTime EXIF tag (e.g. DateTimeOriginal).
-	param offset Corresponding DateTime offset (e.g. OffsetTimeOriginal) EXIF tag.
-	returns Posix UTC timestamp. */
-	private fun parseExifDateTime(dateTime: String, offset: String): Long {
-		val exifDateTimeFmt = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss")
-		val takenAt = LocalDateTime.parse(dateTime, exifDateTimeFmt)  // local time
-		val utcTimestamp: Long = takenAt.toEpochSecond(ZoneOffset.of(offset)) * 1000L
-		return utcTimestamp
-	}
-
-	// feed gallery DB with photo gallery content
-	private fun feedDbWithPhotoGalleryContent() {  // TODO: this function touch private member in a separate thread it should be definitely moved from outside the Fragment
-		// TODO: take just first 1000 photos to prevent ANR error
-		val photos = (listGalleryFolder() + listSdCardGalleryFolder()).take(1000)
-		Log.d(TAG, "gallery-folder-photos=${photos.size}")
-
-		val elapsed = measureTimeMillis {
-			photos.forEach {
-				val path = it
-				if (path.endsWith(".jpg")) {
-					if (!_db!!.inGallery(it)) {
-						val exif = ExifInterface(path)
-
-						// read GPS position from photo
-						val lonStr = exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE)
-						val lonRef = exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE_REF)
-						if (lonStr == null || lonRef == null)
-							return@forEach
-						val lon: Double = parseExifGPSCoordinate(lonStr, lonRef)
-
-						val latStr = exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE)
-						val latRef = exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE_REF)
-						if (latStr == null || latRef == null)
-							return@forEach
-						val lat: Double = parseExifGPSCoordinate(latStr, latRef)
-
-						// read creation date from photo
-						val dateTimeOriginalAttr = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
-						val offsetTimeOriginalAttr =
-							exif.getAttribute(ExifInterface.TAG_OFFSET_TIME_ORIGINAL)
-						if (dateTimeOriginalAttr == null || offsetTimeOriginalAttr == null)
-							return@forEach
-						val timestamp = parseExifDateTime(dateTimeOriginalAttr, offsetTimeOriginalAttr)
-
-						val galleryItem = DBMain.GalleryRecord(lon, lat, timestamp, it)
-						_db!!.addToGallery(galleryItem)
-
-						Log.d(TAG, "($lat, $lon), $dateTimeOriginalAttr ($timestamp) -> $it")
-					}
-//					else
-//						Log.d(TAG, "$it item already found in gallery table")
-				}
-			}
-		}
-
-		Log.d(TAG, "gallery DB update: ${elapsed}ms")
-	}
-
 	private fun showPois() {
 		val poiCursor = _db!!.queryPois()
 
@@ -255,8 +165,9 @@ class FirstFragment : Fragment() {
 		poiCursor.close()
 	}
 
-	private fun showGalleryPois() {
-		val galleryCursor = _db!!.queryGallery()
+	private fun showGalleryPois(pois: ArrayList<Long>) {  // TODO: can we use something more general than ArrayList?
+		// TODO: we need location and id from gallery table (not path and date) so quering whole record is ineffcient
+		val galleryCursor = _db!!.queryGallery(pois)
 
 		// create list of column indices
 		val lonColIdx = galleryCursor.getColumnIndex("lon")
@@ -276,11 +187,6 @@ class FirstFragment : Fragment() {
 					add("id", JsonPrimitive(id))
 				}
 
-				// TODO: restrict POIs to 500 otherwise mapview is too much slow
-				if (id > 1000)
-					break
-
-//				addPoiToMap(lon, lat, poiData, _photoIcon)  // TODO: remove, replaced by gallery-layer
 				_galleryLayer.addPhoto(lon, lat, poiData)
 
 //				Log.d(TAG, "gallery item id=$id ($lat, $lon) added to map")
@@ -289,55 +195,6 @@ class FirstFragment : Fragment() {
 		}
 
 		galleryCursor.close()
-	}
-
-	// TODO: move out gallery stuff
-
-	/** Lists internal gallery folder. */
-	private fun listGalleryFolder(): ArrayList<String> {
-		val galleryFolder =
-			Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
-
-		val result = arrayListOf<String>()
-
-		val elapsed = measureTimeMillis {
-			// TODO: this seems to be work for map, not forEach
-			File(galleryFolder.absolutePath).walk().forEach {
-				result.add(it.absolutePath)
-			}
-		}
-
-		Log.d(TAG, "listing internal gallery folder (${galleryFolder.absolutePath}): ${elapsed}ms")
-
-		return result
-	}
-
-	/** Lists SD Card gallery folder (e.g. /storage/9C33-6BBD/DCIM) */
-	private fun listSdCardGalleryFolder(): ArrayList<String> {
-		// figure out DCIM path e.g. /storage/9C33-6BBD/DCIM
-		val externalVolumes = MediaStore.getExternalVolumeNames(requireContext())
-		val sdCardVolumes = externalVolumes.filter {
-			it != MediaStore.VOLUME_EXTERNAL_PRIMARY && it != MediaStore.VOLUME_EXTERNAL
-		}
-		if (sdCardVolumes.isEmpty())  // no SD Card
-			return arrayListOf<String>()
-
-		// TODO: for now just take the firs one SD Card in system
-		val sdCardDcimPath = "/storage/${sdCardVolumes[0].uppercase()}/DCIM"
-		Log.d("main", "sdCardDcimPath=$sdCardDcimPath")
-
-		val result = arrayListOf<String>()
-
-		val elapsed = measureTimeMillis {
-			// TODO: this seems to be work for map, not forEach
-			File(sdCardDcimPath).walk().forEach {
-				result.add(it.absolutePath)
-			}
-		}
-
-		Log.d(TAG, "listing SD Card gallery folder ($sdCardDcimPath): ${elapsed}ms")
-
-		return result
 	}
 
 	override fun onDestroyView() {
@@ -404,14 +261,26 @@ class FirstFragment : Fragment() {
 
 		val handler = Handler(Looper.getMainLooper())
 
+		val photos = GalleryPhotoBatch(this, _db!!)
+
 		executor.execute {
-			feedDbWithPhotoGalleryContent()
-			handler.post {
-				val elapsedGallery = measureTimeMillis {
-					showGalleryPois()
+			var someData = false
+
+			do {
+				val photoBatch = photos.nextBatch()
+				someData = photoBatch != null
+
+				if (someData) {
+					handler.post {  // we have gallery data available so notify UI thread to show it
+						val elapsedGallery = measureTimeMillis {
+							showGalleryPois(photoBatch!!)  // TODO: do we need a copy of photBath there?
+						}
+						Log.d(TAG, "showing gallery: ${elapsedGallery}ms")
+					}
 				}
-				Log.d(TAG, "showing gallery: ${elapsedGallery}ms")
-			}
+			} while (someData)
+
+			Log.d(TAG, "all gallery photos processed")
 		}
 
 		executor.shutdown()
