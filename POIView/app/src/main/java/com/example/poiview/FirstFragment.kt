@@ -21,11 +21,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.appcompat.content.res.AppCompatResources
 import com.example.poiview.databinding.FragmentFirstBinding
+import com.example.poiview.gallery.PhotoBatch
+import com.example.poiview.gallery.ShowPhoto
 import com.example.poiview.map.GalleryLayer
 import com.example.poiview.map.OnMarkerClick
-import com.example.poiview.map.SampleClusterLayer
-import com.example.poiview.map.SampleLineLayer
-import com.example.poiview.map.SampleSymbolLayer
+import com.example.poiview.map.TripLayer
 import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
 import com.mapbox.geojson.Point
@@ -38,7 +38,6 @@ import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import com.mapbox.maps.plugin.gestures.OnMapClickListener
 import com.mapbox.maps.plugin.gestures.addOnMapClickListener
 import java.io.File
-import java.nio.file.Path
 import java.util.concurrent.Executors
 import kotlin.system.measureTimeMillis
 
@@ -80,22 +79,25 @@ class FirstFragment : Fragment() {
 				override fun onStyleLoaded(style: Style) {
 					Log.d(TAG, "map loaded")
 					_galleryLayer = GalleryLayer(style, _photoIcon,
-						GalleryPhotoShow(_db!!, this@FirstFragment))
+						ShowPhoto(_db!!, this@FirstFragment)
+					)
 
 					val elapsedPois = measureTimeMillis {
 						showPois()
 					}
 					Log.d(TAG, "showing POIs: ${elapsedPois}ms")
 
-					SampleLineLayer(style)
-					SampleSymbolLayer(style, _loveIcon)
-					SampleClusterLayer(style, _starIcon)
+					_tripLayer = TripLayer(style)
+
+//					SampleLineLayer(style)
+//					SampleSymbolLayer(style, _loveIcon)
+//					SampleClusterLayer(style, _starIcon)
 
 					// TODO: shouldn't be permission check part of the listGalleryFolder function?
 					// check for external storage (all files) permission
 					if (checkPermission()) {
 						Log.d(TAG, "external storage permission already granted")
-						executeShowPhotoGalleryPipeline()
+						afterSdCardPermissionGranted()
 					}
 					else {
 						Log.d(TAG, "external storage permission not granted, request")
@@ -165,6 +167,7 @@ class FirstFragment : Fragment() {
 		poiCursor.close()
 	}
 
+	// TODO: create dedicated class/type to handle showing gallery pois ...
 	private fun showGalleryPois(pois: ArrayList<Long>) {  // TODO: can we use something more general than ArrayList?
 		// TODO: we need location and id from gallery table (not path and date) so quering whole record is ineffcient
 		val galleryCursor = _db!!.queryGallery(pois)
@@ -255,13 +258,13 @@ class FirstFragment : Fragment() {
 		}
 	}
 
-	/** Executes pipeline showing photography gallery on map. */
+	/** Executes pipeline to show photo gallery on map. */
 	private fun executeShowPhotoGalleryPipeline() {  // TODO: not sure about function name find something bether
 		val executor = Executors.newSingleThreadExecutor()
 
 		val handler = Handler(Looper.getMainLooper())
 
-		val photos = GalleryPhotoBatch(this, _db!!)
+		val photos = PhotoBatch(this, _db!!)
 
 		executor.execute {
 			var someData = false
@@ -286,11 +289,22 @@ class FirstFragment : Fragment() {
 		executor.shutdown()
 	}
 
+	private fun showTripLogs() {
+		with (GpxTrips(this@FirstFragment)) {
+			show(_tripLayer)
+		}
+	}
+
+	private fun afterSdCardPermissionGranted() {
+		executeShowPhotoGalleryPipeline()
+		showTripLogs()
+	}
+
 	// this is called after external storage access granted
 	private val storageActivityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
 		if (checkPermission()) {
 			Log.d(TAG, "external storage permission granted")
-			executeShowPhotoGalleryPipeline()
+			afterSdCardPermissionGranted()
 		}
 		else {
 			Log.d(TAG, "external storage permission denied")
@@ -312,4 +326,5 @@ class FirstFragment : Fragment() {
 	private lateinit var _starIcon: Bitmap
 	private lateinit var _jewelryIcon: Bitmap
 	private lateinit var _galleryLayer: GalleryLayer
+	private lateinit var _tripLayer: TripLayer
 }

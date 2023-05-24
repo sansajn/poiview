@@ -1,4 +1,4 @@
-package com.example.poiview
+package com.example.poiview.gallery
 
 import android.media.ExifInterface
 import java.nio.file.Path

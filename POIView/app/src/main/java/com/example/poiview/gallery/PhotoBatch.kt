@@ -1,15 +1,17 @@
-package com.example.poiview
+package com.example.poiview.gallery
 
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import androidx.fragment.app.Fragment
+import com.example.poiview.DBMain
+import com.example.poiview.FirstFragment
 import java.io.File
 import java.nio.file.Paths
 import kotlin.system.measureTimeMillis
 
 /** Helper class to get batch of gallery photo IDs (from gallery table). */
-class GalleryPhotoBatch(private val parentFragment: Fragment, private val db: DBMain) {  // TODO: this seems to be iterable, can I improve design and make it iterable?
+class PhotoBatch(private val parentFragment: Fragment, private val db: DBMain) {  // TODO: this seems to be iterable, can I improve design and make it iterable?
 	/** Get next batch of photo IDs (from gallery table) or an empty array otherwise. */
 	fun nextBatch(): ArrayList<Long>? {
 		// TODO: we can have first 100 photos without GPS data so batch can be 0 length
@@ -90,7 +92,7 @@ class GalleryPhotoBatch(private val parentFragment: Fragment, private val db: DB
 
 		// TODO: for now just take the firs one SD Card in system
 		val sdCardDcimPath = "/storage/${sdCardVolumes[0].uppercase()}/DCIM"
-		Log.d("main", "sdCardDcimPath=$sdCardDcimPath")
+		Log.d(TAG, "sdCardDcimPath=$sdCardDcimPath")
 
 		val result = arrayListOf<String>()
 
@@ -101,18 +103,22 @@ class GalleryPhotoBatch(private val parentFragment: Fragment, private val db: DB
 			}
 		}
 
-		Log.d(FirstFragment.TAG, "listing SD Card gallery folder ($sdCardDcimPath): ${elapsed}ms")
+		Log.d(TAG, "listing SD Card gallery folder ($sdCardDcimPath): ${elapsed}ms")
 
 		return result
 	}
 
 	private val _batchSize = 500
 	private val _photos = (listGalleryFolder() + listSdCardGalleryFolder()).also {
-		Log.d(FirstFragment.TAG, "gallery-folder-photos=${it.size}")
+		Log.d(TAG, "gallery-folder-photos=${it.size}")
 	}
 	private var _batchId = 0
 
 	companion object {
 		val TAG = "GalleryPhotoBatch"
+	}
+
+	init {
+		Log.d(TAG, "BatchSize=$_batchSize")
 	}
 }

@@ -1,15 +1,11 @@
 package com.example.poiview.map
 
-import android.content.Intent
 import android.graphics.Bitmap
-import android.os.Environment
 import android.util.Log
-import androidx.core.content.FileProvider
-import com.example.poiview.GalleryPhotoShow
+import com.example.poiview.gallery.ShowPhoto
 import com.google.gson.JsonObject
 import com.mapbox.geojson.Feature
 import com.mapbox.geojson.FeatureCollection
-import com.mapbox.geojson.MultiPoint
 import com.mapbox.geojson.Point
 import com.mapbox.maps.Style
 import com.mapbox.maps.extension.style.layers.addLayer
@@ -17,31 +13,11 @@ import com.mapbox.maps.extension.style.layers.generated.SymbolLayer
 import com.mapbox.maps.extension.style.sources.addSource
 import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource
 import com.mapbox.maps.extension.style.sources.getSource
-import java.io.File
 
 /** Map layer for gallery photos. */
 class GalleryLayer(private val mapStyle: Style, private val poiIcon: Bitmap,
-	private val show: GalleryPhotoShow) {
-
-	private var _poiCollection: FeatureCollection
-
-	init {
-		_poiCollection = FeatureCollection.fromFeatures(listOf<Feature>())
-
-		val source = GeoJsonSource(GeoJsonSource.Builder(SOURCE_ID)).apply {
-			featureCollection(_poiCollection)
-		}
-
-		val layer = SymbolLayer(LAYER_ID, SOURCE_ID).apply {
-			iconImage(ICON_ID)
-		}
-
-		with(mapStyle) {
-			addImage(ICON_ID, poiIcon)
-			addSource(source)
-			addLayer(layer)
-		}
-	}
+	private val show: ShowPhoto
+) {
 
 	// TODO: work with list of photos to improve efficiency (we always need to rebuild collection)
 	// TODO: replace poiData with something more specific to photos
@@ -62,8 +38,6 @@ class GalleryLayer(private val mapStyle: Style, private val poiIcon: Bitmap,
 
 		val source = mapStyle.getSource(SOURCE_ID)!! as GeoJsonSource
 		source.featureCollection(_poiCollection)
-
-//		Log.d(TAG, _features.toString())
 	}
 
 	/** Called when POI clicked on map. */
@@ -85,7 +59,23 @@ class GalleryLayer(private val mapStyle: Style, private val poiIcon: Bitmap,
 		const val TAG = "GalleryLayer"
 	}
 
-	val samplePois = listOf<Point>(
-		Point.fromLngLat(14.2668019, 50.0750922)   // Hostivice-Sadová
-	)
+	private var _poiCollection: FeatureCollection
+
+	init {
+		_poiCollection = FeatureCollection.fromFeatures(listOf<Feature>())
+
+		val source = GeoJsonSource(GeoJsonSource.Builder(SOURCE_ID)).apply {
+			featureCollection(_poiCollection)
+		}
+
+		val layer = SymbolLayer(LAYER_ID, SOURCE_ID).apply {
+			iconImage(ICON_ID)
+		}
+
+		with(mapStyle) {
+			addImage(ICON_ID, poiIcon)
+			addSource(source)
+			addLayer(layer)
+		}
+	}
 }

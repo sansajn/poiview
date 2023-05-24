@@ -1,17 +1,17 @@
-package com.example.poiview
+package com.example.poiview.gallery
 
 import android.content.Intent
 import android.os.Environment
 import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
+import com.example.poiview.DBMain
 import com.example.poiview.map.OnMarkerClick
 import java.io.File
 
-/** UI to show gallery photography.
-The current implementation opens photography in a default view/app (e.g. Gallery). */
-class GalleryPhotoShow(private val db: DBMain, private val parentFragment: Fragment) {
-
+/** UI to show gallery photo (from gallery table).
+The current implementation opens photo in a default view/app (e.g. Gallery). */
+class ShowPhoto(private val db: DBMain, private val parentFragment: Fragment) {
 	operator fun invoke(photoId: Long) {
 		val photoPath = db.getPhotoPath(photoId)
 		Log.d(OnMarkerClick.TAG, "photography $photoPath clicked")
