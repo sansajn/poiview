@@ -31,9 +31,9 @@ class TripLayer(private val mapStyle: Style) {
 
 		// TODO: only the first track and segment is taken account
 		val route: LineString? = gpx?.let {
-			Log.d(TAG, "  tracks:")
+//			Log.d(TAG, "  tracks:")
 			it.tracks.forEach {track ->
-				Log.d(TAG, "    ${track.trackName}")
+//				Log.d(TAG, "    ${track.trackName}")
 				track.trackSegments.forEach { segment ->
 					return@let LineString.fromLngLats(
 						segment.trackPoints.map { pt ->
@@ -45,7 +45,7 @@ class TripLayer(private val mapStyle: Style) {
 		}
 
 		if (route != null) {
-			Log.d(TAG, "found route")
+//			Log.d(TAG, "found route")
 			val routes = _tripCollection.features()!!.toMutableList()
 			routes.add(Feature.fromGeometry(route))
 

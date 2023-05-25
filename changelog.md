@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - can show mapbox mapview
 
 ### Changed
+
+- gallery table can contain records (images) without location (lon, lat)
+
 ### Deprecated
 ### Removed
 ### Fixed

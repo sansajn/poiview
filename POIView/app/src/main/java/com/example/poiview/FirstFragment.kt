@@ -181,7 +181,11 @@ class FirstFragment : Fragment() {
 		if (galleryCursor.moveToFirst()) {
 			// TODO: do we have for each algorithm? List has .forEach, cursor probably not
 			do {
-				val lon = galleryCursor.getDouble(lonColIdx)
+				// skip records without location
+				if (galleryCursor.isNull(lonColIdx) || galleryCursor.isNull(latColIdx))
+					continue
+
+				val lon = galleryCursor.getDouble(lonColIdx)  // TODO: what is returned for NULL record values
 				val lat = galleryCursor.getDouble(latColIdx)
 				val id = galleryCursor.getInt(idColIdx)
 
@@ -259,31 +263,37 @@ class FirstFragment : Fragment() {
 	}
 
 	/** Executes pipeline to show photo gallery on map. */
-	private fun executeShowPhotoGalleryPipeline() {  // TODO: not sure about function name find something bether
+	private fun executeShowPhotoGalleryPipeline() {  // TODO: not sure about function name find something better
 		val executor = Executors.newSingleThreadExecutor()
 
 		val handler = Handler(Looper.getMainLooper())
 
 		val photos = PhotoBatch(this, _db!!)
 
-		executor.execute {
-			var someData = false
+		executor.execute {  // this is running on separate thread
+			val takes = measureTimeMillis {
+				var someData = false
+				do {
+					val photoBatch = photos.nextBatch()
+					someData = photoBatch != null
 
-			do {
-				val photoBatch = photos.nextBatch()
-				someData = photoBatch != null
-
-				if (someData) {
-					handler.post {  // we have gallery data available so notify UI thread to show it
-						val elapsedGallery = measureTimeMillis {
-							showGalleryPois(photoBatch!!)  // TODO: do we need a copy of photBath there?
+					if (someData) {
+						handler.post {  // we have gallery data available so notify UI thread to show it
+							val elapsedGallery = measureTimeMillis {
+								showGalleryPois(photoBatch!!)  // TODO: do we need a copy of photoBath there?
+							}
+							Log.i(TAG, "showing gallery batch (${photoBatch!!.size}): ${elapsedGallery}ms")
 						}
-						Log.d(TAG, "showing gallery: ${elapsedGallery}ms")
 					}
-				}
-			} while (someData)
+				} while (someData)
+			}
 
-			Log.d(TAG, "all gallery photos processed")
+			// show some gallery table stats
+			val photoCount = _db!!.galleryCount()
+			val photoWithLocationCount = _db!!.galleryWithLocationCount()
+			Log.i(TAG, "gallery: photos=$photoCount, photos-with-location=$photoWithLocationCount")
+
+			Log.i(TAG, "all gallery photos ($photoCount) processed: ${takes}ms")
 		}
 
 		executor.shutdown()

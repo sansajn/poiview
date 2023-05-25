@@ -16,9 +16,7 @@ import com.mapbox.maps.extension.style.sources.getSource
 
 /** Map layer for gallery photos. */
 class GalleryLayer(private val mapStyle: Style, private val poiIcon: Bitmap,
-	private val show: ShowPhoto
-) {
-
+	private val show: ShowPhoto) {
 	// TODO: work with list of photos to improve efficiency (we always need to rebuild collection)
 	// TODO: replace poiData with something more specific to photos
 	// TODO: maybe we can use https://developer.android.com/reference/java/util/concurrent/CopyOnWriteArrayList there

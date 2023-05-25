@@ -35,11 +35,14 @@ class PhotoBatch(private val parentFragment: Fragment, private val db: DBMain) {
 						val id = db.galleryPhotoId(path)
 						if (id == -1L) {  // create table record
 							val photo = PhotoInfo(Paths.get(path))
-							photo.location?.let { (lon, lat) ->  // TODO: how to deal with nested let functions
-								photo.timestamp?.let { timestamp ->
-									val galleryItem = DBMain.GalleryRecord(lon, lat, timestamp, path)
-									batchIds.add(db.addToGallery(galleryItem))
-								}
+							photo.timestamp?.let { timestamp ->
+								val location = photo.location
+								val galleryItem = if (location != null)
+									DBMain.GalleryRecord(location.first, location.second, timestamp, path)
+								else
+									DBMain.GalleryRecord(null, null, timestamp, path)
+
+								batchIds.add(db.addToGallery(galleryItem))
 							}
 						}
 						else

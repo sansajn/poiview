@@ -6,11 +6,12 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
+import kotlin.math.max
 
 // Application main database manipulation class. TODO: try to figure out better name! db.App?
 class DBMain {
 	data class PoiRecord(val lon: Double, val lat: Double, val name: String)
-	data class GalleryRecord(val lon: Double, val lat: Double, val date: Long, val path: String)
+	data class GalleryRecord(val lon: Double?, val lat: Double?, val date: Long, val path: String)
 
 	constructor(context: Context) {
 		db = DBOpenHelper(context).let {
@@ -56,6 +57,26 @@ class DBMain {
 		cursor.close()
 
 		return id
+	}
+
+	/** @returns number of gallery records. */
+	fun galleryCount(): Int {
+		val cursor = db!!.rawQuery("SELECT COUNT(*) FROM $galleryTable", null)
+		val count = if (cursor.moveToFirst())
+			cursor.getInt(0)
+		else -1
+		cursor.close()
+		return count
+	}
+
+	/** @returns number of gallery records with valid location (lon, lat columns). */
+	fun galleryWithLocationCount(): Int {
+		val cursor = db!!.rawQuery("SELECT COUNT($galleryLonCol), COUNT($galleryLatCol) FROM $galleryTable", null)
+		val count = if (cursor.moveToFirst())
+			max(cursor.getInt(0), cursor.getInt(1))
+		else -1
+		cursor.close()
+		return count
 	}
 
 	/** Adds image into gallery DB.

@@ -13,9 +13,13 @@ class GpxTrips(private val parentFragment: Fragment) {
 	fun show(layer: TripLayer) {
 		val trips = listTripLogs()
 
-		trips.forEach { Log.d(TAG, "$it") }
+		// TODO: showing trips is time costly, restrict that to 100 trips only
+		val cyclingTrips = trips.filter {it.contains("Cycling") || it.contains("cycling")}
+			.take(20)
 
-		trips.forEach {
+		cyclingTrips.forEach { Log.d(TAG, "$it") }
+
+		cyclingTrips.forEach {
 			layer.addTrip(it)
 		}
 	}
