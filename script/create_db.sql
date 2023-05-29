@@ -1,5 +1,9 @@
-CREATE TABLE poi (id INTEGER PRIMARY KEY, lon REAL, lat REAL, name TEXT);
+CREATE TABLE poi (
+	id INTEGER PRIMARY KEY, 
+	lon REAL, lat REAL,  -- location
+	name TEXT);
 
+-- sample POIs from Prague
 INSERT INTO poi (lon, lat, name) VALUES(14.4499106, 50.1044106, 'Holesovice');
 INSERT INTO poi (lon, lat, name) VALUES(14.4539178, 50.0964894, 'Karlin');
 INSERT INTO poi (lon, lat, name) VALUES(14.4644267, 50.0847706, 'Zizkov');
@@ -11,8 +15,15 @@ INSERT INTO poi (lon, lat, name) VALUES(14.4254381, 50.0788497, 'Nove Mesto');
 INSERT INTO poi (lon, lat, name) VALUES(14.4188719, 50.0636178, 'Vysehrad');
 INSERT INTO poi (lon, lat, name) VALUES(14.4028644, 50.0843850, 'Mala Strana');
 
-CREATE TABLE gallery (id INTEGER PRIMARY KEY, lon REAL, lat REAL, date INTEGER, path TEXT);
 
+CREATE TABLE gallery (
+	id INTEGER PRIMARY KEY, 
+	lon REAL, lat REAL,  -- location
+	date INTEGER, 
+	path TEXT);
+
+-- sample photo-pois from near Liberec
+-- bounding box: [15.0471172,50.6991692,15.1413058,50.7888681] as (lon,lat) pairs
 INSERT INTO gallery (lon, lat, date, path) VALUES(15.0505333, 50.7888681, 1676039073, '/test/photo1.jpg');
 INSERT INTO gallery (lon, lat, date, path) VALUES(15.0505714, 50.7823372, 1676035473, '/test/photo2.jpg');
 INSERT INTO gallery (lon, lat, date, path) VALUES(15.0471172, 50.7726478, 1676031873, '/test/photo3.jpg');

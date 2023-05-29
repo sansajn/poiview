@@ -1,0 +1,84 @@
+<!-- Mapbox starter template with map view and default marker -->
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="utf-8">
+<title>Mapbox starter template</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+<link href="https://api.mapbox.com/mapbox-gl-js/v2.11.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.11.0/mapbox-gl.js"></script>
+<script src='https://unpkg.com/@turf/turf@6/turf.min.js'></script>
+<style>
+body { margin: 0; padding: 0; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; }
+</style>
+</head>
+
+<body>
+<div id="map"></div>
+
+<script>
+	// array of [lon, lat] pairs
+	const galleryPos = [
+		[15.0505333, 50.7888681],
+		[15.0505714, 50.7823372],
+		[15.0471172, 50.7726478],
+		[15.0692225, 50.7652283],
+		[15.0813903, 50.7431717],
+		[15.0546950, 50.7302550],
+		[15.0552931, 50.7191353],
+		[15.0761556, 50.7026367],
+		[15.1169319, 50.6991692],
+		[15.1413058, 50.7085036]
+	]
+
+	const centerPos = galleryPos[4]
+
+	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRhbS1obGF2YXRvdmljIiwiYSI6ImNsYXdicHJ5eTBkc2ozb2xpcTliNnhxNDMifQ.zq11onVb-SAvtFeApMhHAg';
+	const map = new mapboxgl.Map({
+		container: 'map', // div container ID
+		style: 'mapbox://styles/mapbox/streets-v12', // style URL
+		center: centerPos,
+		zoom: 12 // starting zoom
+	})
+
+	// create markers
+	const markers = galleryPos.map((pos, idx) => {
+		const popup = new mapboxgl.Popup({offset:25})
+			.setText(`position-idx: ${idx}`)
+
+		return new mapboxgl.Marker()
+			.setLngLat(pos)
+			.setPopup(popup)
+			.addTo(map)
+	})
+
+	const galleryBBox = turf.bboxPolygon(
+		turf.bbox(turf.lineString(galleryPos)))
+
+	console.info(`gallery bounding box: [${galleryBBox.bbox}] as (lon,lat) pairs`)
+
+	map.on('load', () => {
+		map.addSource('galleryBBox', {  // source for gallery POIs bounding box
+			type: 'geojson',
+			data: galleryBBox
+		})
+
+		map.addLayer({  // layer to show gallery POIs bounding box
+			id: 'galleryBBoxLayer',
+			type: 'fill',
+			source: 'galleryBBox',
+			paint: {
+				'fill-color': '#ff0000',
+				'fill-opacity': 0.5
+			}
+		})
+
+		map.setFog({})
+	})
+</script>
+ 
+</body>
+
+</html>

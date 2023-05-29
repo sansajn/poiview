@@ -4,14 +4,14 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import androidx.fragment.app.Fragment
-import com.example.poiview.DBMain
+import com.example.poiview.db.MainDb
 import com.example.poiview.FirstFragment
 import java.io.File
 import java.nio.file.Paths
 import kotlin.system.measureTimeMillis
 
 /** Helper class to get batch of gallery photo IDs (from gallery table). */
-class PhotoBatch(private val parentFragment: Fragment, private val db: DBMain) {  // TODO: this seems to be iterable, can I improve design and make it iterable?
+class PhotoBatch(private val parentFragment: Fragment, private val db: MainDb) {  // TODO: this seems to be iterable, can I improve design and make it iterable?
 	/** Get next batch of photo IDs (from gallery table) or an empty array otherwise. */
 	fun nextBatch(): ArrayList<Long>? {
 		// TODO: we can have first 100 photos without GPS data so batch can be 0 length
@@ -38,9 +38,9 @@ class PhotoBatch(private val parentFragment: Fragment, private val db: DBMain) {
 							photo.timestamp?.let { timestamp ->
 								val location = photo.location
 								val galleryItem = if (location != null)
-									DBMain.GalleryRecord(location.first, location.second, timestamp, path)
+									MainDb.GalleryRecord(location.first, location.second, timestamp, path)
 								else
-									DBMain.GalleryRecord(null, null, timestamp, path)
+									MainDb.GalleryRecord(null, null, timestamp, path)
 
 								batchIds.add(db.addToGallery(galleryItem))
 							}

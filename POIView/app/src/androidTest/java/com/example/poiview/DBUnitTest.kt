@@ -3,6 +3,7 @@ package com.example.poiview
 import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.poiview.db.MainDb
 
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -15,7 +16,7 @@ class DBUnitTest {
 	@Test
 	fun createDB() {
 		val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-		val db = DBMain(appContext)
+		val db = MainDb(appContext)
 	}
 
 	@Test
@@ -23,7 +24,7 @@ class DBUnitTest {
 		Log.d("test", "test message")
 		val appContext = InstrumentationRegistry.getInstrumentation().targetContext
 
-		val db = DBMain(appContext)
+		val db = MainDb(appContext)
 		val poiCursor = db.queryPois()
 
 		val idColIdx = poiCursor.getColumnIndex("id")
@@ -66,7 +67,7 @@ class DBUnitTest {
 	fun readFromGalleryTable() {
 		val appContext = InstrumentationRegistry.getInstrumentation().targetContext
 
-		val db = DBMain(appContext)
+		val db = MainDb(appContext)
 		val poiCursor = db.queryGallery()
 
 		val idColIdx = poiCursor.getColumnIndex("id")

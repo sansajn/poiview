@@ -10,7 +10,6 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
-import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
 import androidx.fragment.app.Fragment
@@ -21,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.appcompat.content.res.AppCompatResources
 import com.example.poiview.databinding.FragmentFirstBinding
+import com.example.poiview.db.MainDb
 import com.example.poiview.gallery.PhotoBatch
 import com.example.poiview.gallery.ShowPhoto
 import com.example.poiview.map.GalleryLayer
@@ -29,6 +29,9 @@ import com.example.poiview.map.TripLayer
 import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
 import com.mapbox.geojson.Point
+import com.mapbox.maps.CameraOptions
+import com.mapbox.maps.CoordinateBounds
+import com.mapbox.maps.MapboxMap
 import com.mapbox.maps.RenderedQueryGeometry
 import com.mapbox.maps.RenderedQueryOptions
 import com.mapbox.maps.Style
@@ -37,7 +40,6 @@ import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import com.mapbox.maps.plugin.gestures.OnMapClickListener
 import com.mapbox.maps.plugin.gestures.addOnMapClickListener
-import java.io.File
 import java.util.concurrent.Executors
 import kotlin.system.measureTimeMillis
 
@@ -64,7 +66,7 @@ class FirstFragment : Fragment() {
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 		super.onViewCreated(view, savedInstanceState)
 
-		_db = DBMain(requireContext())  // database initialisation
+		_db = MainDb(requireContext())  // database initialisation
 
 		// icons
 		_photoIcon = loadIcon(R.drawable.marker_camera)
@@ -73,7 +75,9 @@ class FirstFragment : Fragment() {
 		_starIcon = loadIcon(R.drawable.marker_star)
 		_jewelryIcon = loadIcon(R.drawable.marker_jewelry)
 
-		binding.mapView.getMapboxMap()?.loadStyleUri(
+		val map = binding.mapView.getMapboxMap()
+
+		map.loadStyleUri(
 			Style.MAPBOX_STREETS,
 			object : Style.OnStyleLoaded {
 				override fun onStyleLoaded(style: Style) {
@@ -107,34 +111,61 @@ class FirstFragment : Fragment() {
 				}
 			})
 
-		val map = binding.mapView.getMapboxMap()
-		if (map != null) {
-			map.addOnMapClickListener(
-				object : OnMapClickListener {
-					override fun onMapClick(point: Point): Boolean {
-						// TODO: get list of clicked features ...
-						val screenPoint = map.pixelForCoordinate(point)
+		map.addOnMapClickListener(
+			object : OnMapClickListener {
+				override fun onMapClick(point: Point): Boolean {
+					// TODO: get list of clicked features ...
+					val screenPoint = map.pixelForCoordinate(point)
 
-						map.queryRenderedFeatures(
-							RenderedQueryGeometry(screenPoint),
-							RenderedQueryOptions(listOf(GalleryLayer.LAYER_ID), null)
-						) {
+					map.queryRenderedFeatures(
+						RenderedQueryGeometry(screenPoint),
+						RenderedQueryOptions(listOf(GalleryLayer.LAYER_ID), null)
+					) {
 
-							if (!it.isValue || it.value!!.isEmpty())
-								return@queryRenderedFeatures
+						if (!it.isValue || it.value!!.isEmpty())
+							return@queryRenderedFeatures
 
-							Log.d(TAG, it.value.toString())
+						Log.d(TAG, it.value.toString())
 
-							val selectedFeature = it.value!![0].feature
-							_galleryLayer.onPoiClicked(selectedFeature)
-						}
-
-						Log.d(TAG, "map clicked ...")
-						return true
+						val selectedFeature = it.value!![0].feature
+						_galleryLayer.onPoiClicked(selectedFeature)
 					}
+
+					Log.d(TAG, "map clicked ...")
+					return true
 				}
-			)
+			}
+		)
+
+		val mapUpdateHandler = Handler(Looper.getMainLooper())
+		val updateMapJob = Runnable {
+			var poiCount = 0
+			val takes = measureTimeMillis {
+				poiCount = showVisibleGalleryPois()
+			}
+			Log.d(TAG, "render visible gallery-pois ($poiCount) takes: ${takes}ms")
 		}
+
+		map.addOnCameraChangeListener { _ ->
+			// we do not want to trigger update directly, instead update with 1/2s period at maximum
+			if (!mapUpdateHandler.hasCallbacks(updateMapJob)) {
+				mapUpdateHandler.postDelayed(updateMapJob, 500)
+			}
+		}
+	}
+
+	private fun logVisibleAreaBounds(map: MapboxMap) {
+		val visibleAreaBounds = getVisibleAreaBounds(map)
+		Log.d(TAG, "visible area bounds: min=${visibleAreaBounds.southwest.coordinates()}, max=${visibleAreaBounds.northeast.coordinates()}")
+	}
+
+	/** @returns visible area geo-rectangle. */
+	private fun getVisibleAreaBounds(map: MapboxMap): CoordinateBounds {
+		val camOpts = CameraOptions.Builder()
+			.zoom(map.cameraState.zoom)
+			.center(map.cameraState.center)
+			.build()
+		return map.coordinateBoundsForCamera(camOpts)
 	}
 
 	private fun showPois() {
@@ -179,7 +210,8 @@ class FirstFragment : Fragment() {
 
 		// iterate records
 		if (galleryCursor.moveToFirst()) {
-			// TODO: do we have for each algorithm? List has .forEach, cursor probably not
+			val photos = ArrayList<GalleryLayer.GalleryPoi>()
+
 			do {
 				// skip records without location
 				if (galleryCursor.isNull(lonColIdx) || galleryCursor.isNull(latColIdx))
@@ -194,11 +226,13 @@ class FirstFragment : Fragment() {
 					add("id", JsonPrimitive(id))
 				}
 
-				_galleryLayer.addPhoto(lon, lat, poiData)
+				photos.add(GalleryLayer.GalleryPoi(lon, lat, poiData))
 
 //				Log.d(TAG, "gallery item id=$id ($lat, $lon) added to map")
 			}
 			while (galleryCursor.moveToNext())
+
+			_galleryLayer.showPhoto(photos)
 		}
 
 		galleryCursor.close()
@@ -206,6 +240,7 @@ class FirstFragment : Fragment() {
 
 	override fun onDestroyView() {
 		super.onDestroyView()
+		// TODO: we should remove all map listeners there e.g. `mapboxMap.removeOnCameraChangeListener(listener)`
 		_binding = null
 	}
 
@@ -262,37 +297,28 @@ class FirstFragment : Fragment() {
 		}
 	}
 
-	/** Executes pipeline to show photo gallery on map. */
-	private fun executeShowPhotoGalleryPipeline() {  // TODO: not sure about function name find something better
+	/** Executes pipeline to scan photo gallery. */
+	private fun executePhotoGalleryScan() {  // TODO: not sure about function name find something better
+		val beforeScanPhotoCount = _db!!.galleryCount()
+
 		val executor = Executors.newSingleThreadExecutor()
 
-		val handler = Handler(Looper.getMainLooper())
-
+		// TODO: there we need list of photo paths
 		val photos = PhotoBatch(this, _db!!)
 
 		executor.execute {  // this is running on separate thread
 			val takes = measureTimeMillis {
-				var someData = false
-				do {
-					val photoBatch = photos.nextBatch()
-					someData = photoBatch != null
-
-					if (someData) {
-						handler.post {  // we have gallery data available so notify UI thread to show it
-							val elapsedGallery = measureTimeMillis {
-								showGalleryPois(photoBatch!!)  // TODO: do we need a copy of photoBath there?
-							}
-							Log.i(TAG, "showing gallery batch (${photoBatch!!.size}): ${elapsedGallery}ms")
-						}
-					}
-				} while (someData)
+				// TODO: nextBatch() do not need to return anything ...
+				// just scan whole library folder
+				while (photos.nextBatch() != null)
+					;
 			}
 
 			// show some gallery table stats
 			val photoCount = _db!!.galleryCount()
 			val photoWithLocationCount = _db!!.galleryWithLocationCount()
+			Log.i(TAG, "gallery: found ${photoCount - beforeScanPhotoCount} new photos")
 			Log.i(TAG, "gallery: photos=$photoCount, photos-with-location=$photoWithLocationCount")
-
 			Log.i(TAG, "all gallery photos ($photoCount) processed: ${takes}ms")
 		}
 
@@ -306,8 +332,39 @@ class FirstFragment : Fragment() {
 	}
 
 	private fun afterSdCardPermissionGranted() {
-		executeShowPhotoGalleryPipeline()
+		executePhotoGalleryScan()
+
+		val takes = measureTimeMillis {
+			showVisibleGalleryPois()
+		}
+		Log.d(TAG, "rendering visible gallery pois takes: ${takes}ms")
+
 		showTripLogs()
+	}
+
+	/** Shows visible gallery-pois.
+	 * @returns number of visible POIs (taken from gallery table) */
+	private fun showVisibleGalleryPois(): Int {
+		val map = binding.mapView.getMapboxMap()
+
+		val visiblePoiIds = with(_db!!.queryGallery(getVisibleAreaBounds(map))) {
+			if (moveToFirst()) {
+				val idColIdx = getColumnIndex("id")
+
+				val ids = ArrayList<Long>()  // collect ids
+				do {
+					ids.add(getLong(idColIdx))
+				}
+				while (moveToNext())
+
+				close()  // close cursor
+				ids
+			}
+			else arrayListOf<Long>()
+		}
+
+		showGalleryPois(visiblePoiIds)  // show only visible gallery-pois
+		return visiblePoiIds.size
 	}
 
 	// this is called after external storage access granted
@@ -329,7 +386,7 @@ class FirstFragment : Fragment() {
 		const val TAG = "FirstFragment"
 	}
 
-	private var _db: DBMain? = null  // TODO: any way to avoid nullable type and var
+	private var _db: MainDb? = null  // TODO: any way to avoid nullable type and var
 	private lateinit var _photoIcon: Bitmap
 	private lateinit var _poiIcon: Bitmap
 	private lateinit var _loveIcon: Bitmap

@@ -1,4 +1,4 @@
-package com.example.poiview
+package com.example.poiview.db
 
 import android.content.ContentValues
 import android.content.Context
@@ -6,10 +6,11 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
+import com.mapbox.maps.CoordinateBounds
 import kotlin.math.max
 
 // Application main database manipulation class. TODO: try to figure out better name! db.App?
-class DBMain {
+class MainDb {
 	data class PoiRecord(val lon: Double, val lat: Double, val name: String)
 	data class GalleryRecord(val lon: Double?, val lat: Double?, val date: Long, val path: String)
 
@@ -39,6 +40,21 @@ class DBMain {
 	fun queryGallery(ids: ArrayList<Long>): Cursor {
 		// TODO: cursor needs to be closed with close() call, which needs to be done on caller side poor implementation
 		return db!!.rawQuery("SELECT * FROM $galleryTable WHERE id IN (${ids.joinToString(",")})", null)
+	}
+
+	// TODO: we need some dedicated structure for bounding-box
+	/** @returns gallery items from inside the specified bounding box as table Cursor which needs to
+	 * be explicitly closed by caller. */
+	fun queryGallery(areaBBox: CoordinateBounds): Cursor {
+		// TODO: cursor needs to be closed with close() call, which needs to be done on caller side poor implementation
+		/*SELECT * FROM gallery
+			WHERE lon BETWEEN 15.0471172 AND 15.1413058 AND
+		lat BETWEEN 50.6991692 AND 50.7888681;*/
+		val minPos = areaBBox.southwest
+		val maxPos = areaBBox.northeast
+		return db!!.rawQuery(
+			"SELECT * FROM $galleryTable WHERE $galleryLonCol BETWEEN ${minPos.longitude()} AND ${maxPos.longitude()} AND $galleryLatCol BETWEEN ${minPos.latitude()} AND ${maxPos.latitude()}",
+			null)
 	}
 
 	/** @param photo Photography file path. */

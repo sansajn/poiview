@@ -17,25 +17,22 @@ import com.mapbox.maps.extension.style.sources.getSource
 /** Map layer for gallery photos. */
 class GalleryLayer(private val mapStyle: Style, private val poiIcon: Bitmap,
 	private val show: ShowPhoto) {
-	// TODO: work with list of photos to improve efficiency (we always need to rebuild collection)
+
+	/** @param data JSON with table: String, id: Integer properties. */
+	data class GalleryPoi(val lon: Double, val lat: Double, val data: JsonObject)
+
 	// TODO: replace poiData with something more specific to photos
 	// TODO: maybe we can use https://developer.android.com/reference/java/util/concurrent/CopyOnWriteArrayList there
-	/** Add gallery photo to layer.
-	@param poiData JSON with table: String, id: Integer properties. */
-	fun addPhoto(lon: Double, lat: Double, poiData: JsonObject) {
-		// I didn't found any other way than rebuild feature-collection, not sure how time consuming it is
-		val poiList = _poiCollection.features()!!.toMutableList()
-
-		val poiFeature = Feature.fromGeometry(Point.fromLngLat(lon, lat)).apply {
-			addProperty("data", poiData)
+	/** Show batch of photos as POIs on map. */
+	fun showPhoto(batch: ArrayList<GalleryPoi>) {
+		val features = batch.map {poi ->
+			Feature.fromGeometry(Point.fromLngLat(poi.lon, poi.lat)).apply {
+				addProperty("data", poi.data)
+			}
 		}
 
-		poiList.add(poiFeature)
-
-		_poiCollection = FeatureCollection.fromFeatures(poiList)
-
 		val source = mapStyle.getSource(SOURCE_ID)!! as GeoJsonSource
-		source.featureCollection(_poiCollection)
+		source.featureCollection(FeatureCollection.fromFeatures(features))
 	}
 
 	/** Called when POI clicked on map. */
@@ -57,13 +54,11 @@ class GalleryLayer(private val mapStyle: Style, private val poiIcon: Bitmap,
 		const val TAG = "GalleryLayer"
 	}
 
-	private var _poiCollection: FeatureCollection
-
 	init {
-		_poiCollection = FeatureCollection.fromFeatures(listOf<Feature>())
+		val emptyCollection = FeatureCollection.fromFeatures(listOf<Feature>())
 
 		val source = GeoJsonSource(GeoJsonSource.Builder(SOURCE_ID)).apply {
-			featureCollection(_poiCollection)
+			featureCollection(emptyCollection)
 		}
 
 		val layer = SymbolLayer(LAYER_ID, SOURCE_ID).apply {

@@ -1,17 +1,16 @@
 package com.example.poiview.map
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Environment
 import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
-import com.example.poiview.DBMain
+import com.example.poiview.db.MainDb
 import com.mapbox.maps.plugin.annotation.generated.OnPointAnnotationClickListener
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotation
 import java.io.File
 
-class OnMarkerClick(val db: DBMain, val parentFragment: Fragment): OnPointAnnotationClickListener {  // TODO: MarkerClicked?
+class OnMarkerClick(val db: MainDb, val parentFragment: Fragment): OnPointAnnotationClickListener {  // TODO: MarkerClicked?
 	override fun onAnnotationClick(annotation: PointAnnotation): Boolean {
 		// TODO: this needs to handle both POI and photo markers
 		// TODO: how to handle possible missing table, id fields without `?.` operator ?
