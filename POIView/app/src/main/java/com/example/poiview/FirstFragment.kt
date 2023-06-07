@@ -25,7 +25,7 @@ import com.example.poiview.gallery.PhotoBatch
 import com.example.poiview.gallery.ShowPhoto
 import com.example.poiview.map.GalleryLayer
 import com.example.poiview.map.OnMarkerClick
-import com.example.poiview.map.TripLayer
+import com.example.poiview.map.CycleLayer
 import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
 import com.mapbox.geojson.Point
@@ -91,7 +91,7 @@ class FirstFragment : Fragment() {
 					}
 					Log.d(TAG, "showing POIs: ${elapsedPois}ms")
 
-					_tripLayer = TripLayer(style)
+					_tripLayer = CycleLayer(style)
 
 //					SampleLineLayer(style)
 //					SampleSymbolLayer(style, _loveIcon)
@@ -139,11 +139,7 @@ class FirstFragment : Fragment() {
 
 		val mapUpdateHandler = Handler(Looper.getMainLooper())
 		val updateMapJob = Runnable {
-			var poiCount = 0
-			val takes = measureTimeMillis {
-				poiCount = showVisibleGalleryPois()
-			}
-			Log.d(TAG, "render visible gallery-pois ($poiCount) takes: ${takes}ms")
+			updateMap()
 		}
 
 		map.addOnCameraChangeListener { _ ->
@@ -154,10 +150,10 @@ class FirstFragment : Fragment() {
 		}
 	}
 
-	private fun logVisibleAreaBounds(map: MapboxMap) {
-		val visibleAreaBounds = getVisibleAreaBounds(map)
-		Log.d(TAG, "visible area bounds: min=${visibleAreaBounds.southwest.coordinates()}, max=${visibleAreaBounds.northeast.coordinates()}")
-	}
+//	private fun logVisibleAreaBounds(map: MapboxMap) {
+//		val visibleAreaBounds = getVisibleAreaBounds(map)
+//		Log.d(TAG, "visible area bounds: min=${visibleAreaBounds.southwest.coordinates()}, max=${visibleAreaBounds.northeast.coordinates()}")
+//	}
 
 	/** @returns visible area geo-rectangle. */
 	private fun getVisibleAreaBounds(map: MapboxMap): CoordinateBounds {
@@ -297,8 +293,10 @@ class FirstFragment : Fragment() {
 		}
 	}
 
-	/** Executes pipeline to scan photo gallery. */
+	// TODO: can we move following into gallery package as GalleryScanner?
 	private fun executePhotoGalleryScan() {  // TODO: not sure about function name find something better
+		Log.i(TAG, "running gallery photo scanner ...")
+
 		val beforeScanPhotoCount = _db!!.galleryCount()
 
 		val executor = Executors.newSingleThreadExecutor()
@@ -306,7 +304,7 @@ class FirstFragment : Fragment() {
 		// TODO: there we need list of photo paths
 		val photos = PhotoBatch(this, _db!!)
 
-		executor.execute {  // this is running on separate thread
+		executor.execute {  // running on separate thread
 			val takes = measureTimeMillis {
 				// TODO: nextBatch() do not need to return anything ...
 				// just scan whole library folder
@@ -325,21 +323,83 @@ class FirstFragment : Fragment() {
 		executor.shutdown()
 	}
 
-	private fun showTripLogs() {
-		with (GpxTrips(this@FirstFragment)) {
-			show(_tripLayer)
+	// TODO: move to CycleActivityInfo module similar as with PhotoInfo
+	data class CycleActivityInfo(val title: String, val date: Long, val bounds: CoordinateBounds)
+
+	private fun cycleActivityInfo(gpxFile: String): CycleActivityInfo {
+		val log = GpxLog(gpxFile)
+		val activityTitle = log.name()
+		val bounds = log.bounds()
+		val posixDateTime = log.dateTime()
+
+		Log.d(TAG, "parsing '$gpxFile': '$activityTitle', $bounds, $posixDateTime ")
+
+		return CycleActivityInfo(activityTitle, posixDateTime, bounds)
+	}
+
+	// TODO: can we move following into scanner package?
+	private fun executeCycleActivityScan() {
+		Log.i(TAG, "running cycling activities scanner ...")
+
+		val beforeScanCycleCount = _db!!.cycleCount()
+
+		val executor = Executors.newSingleThreadExecutor()
+
+		val activities = GpxLogs(this)
+
+		executor.execute {  // running on separate thread
+			// get list of cycle activity log files
+			val cycleActivities = activities.list().filter {it.contains("Cycling") || it.contains("cycling")}
+
+			val takes = measureTimeMillis {
+				// process file by file
+				cycleActivities.filter {
+					!_db!!.inCycleActivities(it)
+				}.forEach {
+					val cycleInfo = cycleActivityInfo(it)
+					val minPos = cycleInfo.bounds.southwest
+					val maxPos = cycleInfo.bounds.northeast
+					_db!!.addToCycle(
+						MainDb.CycleRecord(
+							cycleInfo.title, cycleInfo.date, it,
+							minPos.longitude(), minPos.latitude(), maxPos.longitude(), maxPos.latitude()
+						)
+					)
+				}
+			}
+
+			val cycleCount = _db!!.cycleCount()
+			Log.i(TAG, "cycle: found ${cycleCount - beforeScanCycleCount} new cycling activities")
+			Log.i(TAG, "all cycling activities ($cycleCount) processed: ${takes}ms")
 		}
+
+		executor.shutdown()
 	}
 
 	private fun afterSdCardPermissionGranted() {
+		updateMap()
+
+		// run scanner services
 		executePhotoGalleryScan()
+		executeCycleActivityScan()
+	}
 
-		val takes = measureTimeMillis {
-			showVisibleGalleryPois()
+	private fun updateMap() {
+		run {
+			var poiCount = 0
+			val takes = measureTimeMillis {
+				poiCount = showVisibleGalleryPois()
+			}
+			Log.d(TAG, "rendering visible gallery pois ($poiCount) takes: ${takes}ms")
 		}
-		Log.d(TAG, "rendering visible gallery pois takes: ${takes}ms")
 
-		showTripLogs()
+		run {
+			var cycleCount = 0
+			val takes = measureTimeMillis {
+				cycleCount = showVisibleCycleActivity()
+			}
+			Log.d(TAG, "rendering visible cycling activities ($cycleCount) takes: ${takes}ms")
+		}
 	}
 
 	/** Shows visible gallery-pois.
@@ -365,6 +425,32 @@ class FirstFragment : Fragment() {
 
 		showGalleryPois(visiblePoiIds)  // show only visible gallery-pois
 		return visiblePoiIds.size
+	}
+
+	/** Shows visible cycling activities.
+	 * @returns number of visible cycling activities (for logging purpose). */
+	private fun showVisibleCycleActivity(): Int {
+		val map = binding.mapView.getMapboxMap()
+
+		val visibleCycle = with(_db!!.queryCycle(getVisibleAreaBounds(map))) {
+			if (moveToFirst()) {
+				val logPathColIdx = getColumnIndex("logPath")
+
+				val paths = ArrayList<String>()  // collect paths
+				do {
+					paths.add(getString(logPathColIdx))
+				}
+				while (moveToNext())
+
+				close()
+				paths
+			}
+			else arrayListOf<String>()
+		}
+
+		// show trips
+		_tripLayer.showTrip(visibleCycle)
+		return visibleCycle.size
 	}
 
 	// this is called after external storage access granted
@@ -393,5 +479,5 @@ class FirstFragment : Fragment() {
 	private lateinit var _starIcon: Bitmap
 	private lateinit var _jewelryIcon: Bitmap
 	private lateinit var _galleryLayer: GalleryLayer
-	private lateinit var _tripLayer: TripLayer
+	private lateinit var _tripLayer: CycleLayer
 }

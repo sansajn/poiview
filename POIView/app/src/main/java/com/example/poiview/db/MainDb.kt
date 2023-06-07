@@ -14,6 +14,13 @@ class MainDb {
 	data class PoiRecord(val lon: Double, val lat: Double, val name: String)
 	data class GalleryRecord(val lon: Double?, val lat: Double?, val date: Long, val path: String)
 
+	/** Cycle table record represents cycle activity.
+	 * @param date posix timestamp activity date.
+	 * @param logPath path to activity log (GPX) file.
+	 * @param minLon, minLat, maxLon, maxLat represents axis aligned bounding box of activity. */
+	data class CycleRecord(val title: String, val date: Long, val logPath: String,
+		val minLon: Double, val minLat: Double, val maxLon: Double, val maxLat: Double)
+
 	constructor(context: Context) {
 		db = DBOpenHelper(context).let {
 			it.writableDatabase
@@ -42,7 +49,6 @@ class MainDb {
 		return db!!.rawQuery("SELECT * FROM $galleryTable WHERE id IN (${ids.joinToString(",")})", null)
 	}
 
-	// TODO: we need some dedicated structure for bounding-box
 	/** @returns gallery items from inside the specified bounding box as table Cursor which needs to
 	 * be explicitly closed by caller. */
 	fun queryGallery(areaBBox: CoordinateBounds): Cursor {
@@ -75,7 +81,7 @@ class MainDb {
 		return id
 	}
 
-	/** @returns number of gallery records. */
+	/** @returns number of gallery records, -1 in case or error. */
 	fun galleryCount(): Int {
 		val cursor = db!!.rawQuery("SELECT COUNT(*) FROM $galleryTable", null)
 		val count = if (cursor.moveToFirst())
@@ -95,10 +101,55 @@ class MainDb {
 		return count
 	}
 
-	/** Adds image into gallery DB.
+	/** Adds image into gallery table.
 	 * @return new record id, in case of error -1L is returned. */
 	fun addToGallery(item: GalleryRecord): Long {
 		return insertGallery(db!!, item)
+	}
+
+	/** @returns cycling activities from inside the specified bounding box as table Cursor which needs to
+	 * be explicitly closed by caller. */
+	fun queryCycle(areaBBox: CoordinateBounds): Cursor {
+//		SELECT * FROM cycle
+//		WHERE maxLon < 15.0471172 OR minLon > 15.1413058 OR
+//			maxLat < 50.6991692 OR minLat > 50.7888681;
+		val bMinPos = areaBBox.southwest
+		val bMaxPos = areaBBox.northeast
+		return db!!.rawQuery(
+			"SELECT * FROM $cycleTable WHERE NOT ($cycleMaxLonCol < ${bMinPos.longitude()} OR $cycleMinLonCol > ${bMaxPos.longitude()} OR $cycleMaxLatCol < ${bMinPos.latitude()} OR $cycleMinLatCol > ${bMaxPos.latitude()})",
+			null)
+	}
+
+	/** Adds to cycle activity table. */
+	fun addToCycle(item: CycleRecord): Long {
+		return insertCycle(db!!, item)
+	}
+
+	/** @returns number of cycling activities records, -1 in case or error. */
+	fun cycleCount(): Int {
+		val cursor = db!!.rawQuery("SELECT COUNT(*) FROM $cycleTable", null)
+		val count = if (cursor.moveToFirst())
+			cursor.getInt(0)
+		else -1
+		cursor.close()
+		return count
+	}
+
+	fun inCycleActivities(gpx: String): Boolean {
+		return cycleActivityId(gpx) != -1L
+	}
+
+	/** @param gpx activity log file path.
+	 * @returns activity ID or -1L in case activity not yet in table. */
+	fun cycleActivityId(gpx: String): Long {
+		val cursor = db!!.rawQuery("SELECT id FROM $cycleTable WHERE ${cycleLogPathCol}=?", arrayOf(gpx))
+		val id = if (cursor.moveToFirst()) {
+			cursor.getLong(cursor.getColumnIndexOrThrow("id"))
+		} else -1L
+
+		cursor.close()
+
+		return id
 	}
 
 	/* pram id gallery item id of  photography
@@ -121,7 +172,6 @@ class MainDb {
 		}
 	}
 
-	/***/
 	private fun insertGallery(db: SQLiteDatabase, item: GalleryRecord): Long {
 		val values = ContentValues().apply {
 			put(galleryLonCol, item.lon)
@@ -131,8 +181,25 @@ class MainDb {
 		}
 
 		// note: following only works for INTEGER PRIMARY KEY tables where rowid is the same as key.
-		val id = db!!.insert(galleryTable, null, values)
+		val id = db.insert(galleryTable, null, values)
 		assert(id != -1L){"inserting '${item.path}' record to $galleryTable table failed"}
+		return id
+	}
+
+	private fun insertCycle(db: SQLiteDatabase, item: CycleRecord): Long {
+		val content = ContentValues().apply {
+			put(cycleTitleCol, item.title)
+			put(cycleDateCol, item.date)
+			put(cycleLogPathCol, item.logPath)
+			put(cycleMinLonCol, item.minLon)
+			put(cycleMinLatCol, item.minLat)
+			put(cycleMaxLonCol, item.maxLon)
+			put(cycleMaxLatCol, item.maxLat)
+		}
+
+		// note: following only works for INTEGER PRIMARY KEY tables where rowid is the same as key.
+		val id = db.insert(cycleTable, null, content)
+		assert(id != -1L){"inserting '${item.logPath}' record to $cycleTable table failed"}
 		return id
 	}
 
@@ -159,18 +226,22 @@ class MainDb {
 		}
 
 		override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
-			Log.d("DBMain", "database upgraded")
+			Log.d("DBMain", "database upgraded (old data dropped)")
 			db!!.execSQL("DROP TABLE IF EXISTS $poiTable")
 			db!!.execSQL("DROP TABLE IF EXISTS $galleryTable")
+			db!!.execSQL("DROP TABLE IF EXISTS $cycleTable")
 			populateDb(db)
 		}
 
 		private fun populateDb(db: SQLiteDatabase) {
-			db!!.execSQL(CREATE_TABLE_POI_SQL)
+			db.execSQL(CREATE_TABLE_POI_SQL)
 			populatePoiWithSamples(db)
 
-			db!!.execSQL(CREATE_TABLE_GALLERY_SQL)
+			db.execSQL(CREATE_TABLE_GALLERY_SQL)
 			populateGalleryWithSamples(db)
+
+			db.execSQL(CREATE_TABLE_CYCLE_SQL)
+			// there are not any samples there yet ...
 		}
 
 		private fun populatePoiWithSamples(db: SQLiteDatabase) {
@@ -223,7 +294,7 @@ class MainDb {
 	}
 
 	private val dbName = "test"
-	private val dbVersion = 5
+	private val dbVersion = 6
 
 	// poi table
 	private val poiTable = "poi"
@@ -240,7 +311,19 @@ class MainDb {
 	private val galleryDateCol = "date"
 	private val galleryPathCol = "path"
 
+	// cycle table
+	private val cycleTable = "cycle"
+	private val cycleIdCol = "id"
+	private val cycleTitleCol = "title"
+	private val cycleDateCol = "date"
+	private val cycleLogPathCol = "logPath"
+	private val cycleMinLonCol = "minLon"
+	private val cycleMinLatCol = "minLat"
+	private val cycleMaxLonCol = "maxLon"
+	private val cycleMaxLatCol = "maxLat"
+
 	private val CREATE_TABLE_POI_SQL = "CREATE TABLE $poiTable ($poiIdCol INTEGER PRIMARY KEY, $poiLonCol REAL, $poiLatCol REAL, $poiNameCol TEXT);"
 	private val CREATE_TABLE_GALLERY_SQL = "CREATE TABLE $galleryTable ($galleryIdCol INTEGER PRIMARY KEY, $galleryLonCol REAL, $galleryLatCol REAL, $galleryDateCol INTEGER, $galleryPathCol TEXT);"
+	private val CREATE_TABLE_CYCLE_SQL = "CREATE TABLE $cycleTable ($cycleIdCol INTEGER PRIMARY KEY, $cycleTitleCol TEXT, $cycleDateCol INTEGER, $cycleLogPathCol TEXT, $cycleMinLonCol REAL, $cycleMinLatCol REAL, $cycleMaxLonCol REAL, $cycleMaxLatCol REAL);"
 	private var db: SQLiteDatabase? = null  // TODO: I want to distinguish between read and write access
 }

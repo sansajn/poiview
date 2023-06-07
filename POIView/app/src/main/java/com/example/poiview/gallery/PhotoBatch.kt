@@ -7,6 +7,7 @@ import androidx.fragment.app.Fragment
 import com.example.poiview.db.MainDb
 import com.example.poiview.FirstFragment
 import java.io.File
+import java.lang.Exception
 import java.nio.file.Paths
 import kotlin.system.measureTimeMillis
 

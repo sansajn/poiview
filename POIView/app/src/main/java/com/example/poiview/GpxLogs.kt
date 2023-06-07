@@ -3,30 +3,15 @@ package com.example.poiview
 import android.provider.MediaStore
 import android.util.Log
 import androidx.fragment.app.Fragment
-import com.example.poiview.map.TripLayer
 import java.io.File
 import kotlin.system.measureTimeMillis
 
 /** Helps to handle GPX log trips.
  * SD card access permission required. */
-class GpxTrips(private val parentFragment: Fragment) {
-	fun show(layer: TripLayer) {
-		val trips = listTripLogs()
-
-		// TODO: showing trips is time costly, restrict that to 100 trips only
-		val cyclingTrips = trips.filter {it.contains("Cycling") || it.contains("cycling")}
-			.take(20)
-
-		cyclingTrips.forEach { Log.d(TAG, "$it") }
-
-		cyclingTrips.forEach {
-			layer.addTrip(it)
-		}
-	}
-
+class GpxLogs(private val parentFragment: Fragment) {
 	// TODO: this will not work on devices without SD Card!! Maybe I should move trip_logs to internal storage.
-	/** @returns list of GPX files in trip_logs directory (e.g. e.g. /storage/9C33-6BBD/trip_logs). */
-	private fun listTripLogs(): ArrayList<String> {
+	/** @returns list of GPX files in `trip_logs` directory (e.g. `/storage/9C33-6BBD/trip_logs`). */
+	fun list(): ArrayList<String> {
 		// TODO: move code to the module and reus the module there and in GalleryPhotoBatch to access SDCard folders
 		// figure out trip_logs path e.g. /storage/9C33-6BBD/trip_logs
 
@@ -37,7 +22,7 @@ class GpxTrips(private val parentFragment: Fragment) {
 		if (sdCardVolumes.isEmpty())  // no SD Card
 			return arrayListOf<String>()
 
-		// TODO: for now just take the firs one SD Card in system
+		// TODO: for now just take the first one SD Card in system
 		val sdCardTripLogPath = "/storage/${sdCardVolumes[0].uppercase()}/trip_logs"
 		Log.d(FirstFragment.TAG, "sdCardTripLogPath=$sdCardTripLogPath")
 
@@ -51,12 +36,12 @@ class GpxTrips(private val parentFragment: Fragment) {
 			}
 		}
 
-		Log.d(TAG, "listing SD Card trip_logs folder ($sdCardTripLogPath): ${elapsed}ms")
+		Log.d(TAG, "listing SD Card trip_logs folder ($sdCardTripLogPath) (${result.size}): ${elapsed}ms")
 
 		return result
 	}
 
 	companion object {
-		const val TAG = "GpxTrips"
+		const val TAG = "GpxLogs"
 	}
 }

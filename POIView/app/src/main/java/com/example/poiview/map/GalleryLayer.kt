@@ -31,8 +31,9 @@ class GalleryLayer(private val mapStyle: Style, private val poiIcon: Bitmap,
 			}
 		}
 
-		val source = mapStyle.getSource(SOURCE_ID)!! as GeoJsonSource
-		source.featureCollection(FeatureCollection.fromFeatures(features))
+		with(mapStyle.getSource(SOURCE_ID)!! as GeoJsonSource) {
+			featureCollection(FeatureCollection.fromFeatures(features))
+		}
 	}
 
 	/** Called when POI clicked on map. */

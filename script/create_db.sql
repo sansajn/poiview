@@ -20,7 +20,8 @@ CREATE TABLE gallery (
 	id INTEGER PRIMARY KEY, 
 	lon REAL, lat REAL,  -- location
 	date INTEGER, 
-	path TEXT);
+	path TEXT  -- path to photo
+);
 
 -- sample photo-pois from near Liberec
 -- bounding box: [15.0471172,50.6991692,15.1413058,50.7888681] as (lon,lat) pairs
@@ -34,3 +35,16 @@ INSERT INTO gallery (lon, lat, date, path) VALUES(15.0552931, 50.7191353, 167601
 INSERT INTO gallery (lon, lat, date, path) VALUES(15.0761556, 50.7026367, 1676013873, '/test/photo8.jpg');
 INSERT INTO gallery (lon, lat, date, path) VALUES(15.1169319, 50.6991692, 1676010273, '/test/photo9.jpg');
 INSERT INTO gallery (lon, lat, date, path) VALUES(15.1413058, 50.7085036, 1676006673, '/test/photo10.jpg');
+
+
+-- cycle activities
+CREATE TABLE cycle (
+	id INTEGER PRIMARY KEY,
+	title TEXT, -- activity title
+	date INTEGER,  -- posix timestamp activity date
+	logPath TEXT,  -- path to activity log (GPX) file
+	minLon REAL, minLat REAL, maxLon REAL, maxLat REAL -- activity axis aligned bounding box
+);
+
+-- TODO: add some sample data taken from the app ...
+

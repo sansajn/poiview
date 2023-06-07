@@ -18,7 +18,7 @@ Open `samples.html` in a web-browser.
 
 ## Queries
 
-Query to *gallery* table to return photo-pois from inside the geo-rectangle
+Query to *gallery* table to return gallery-pois from inside the geo-rectangle
 
 ```sql
 SELECT * FROM gallery
@@ -27,3 +27,16 @@ WHERE lon BETWEEN 15.0471172 AND 15.1413058 AND
 ```
 
 > Result: 10 rows returned in 4ms
+
+where `(15.0471172, 50.6991692)`, `(15.1413058, 50.7888681)` points represents geo-rectangle.
+
+
+Query to *cycle* table to return activities from inside geo-rectangle (e.g. view rectangle)
+
+```sql
+SELECT id FROM cycle
+WHERE NOT (maxLon < 15.0471172 OR minLon > 15.1413058 OR 
+	maxLat < 50.6991692 OR minLat > 50.7888681);
+```
+
+where again `(15.0471172, 50.6991692)`, `(15.1413058, 50.7888681)` points represents geo-rectangle.
