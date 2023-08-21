@@ -34,6 +34,8 @@ To run POIView on a develop machine we need to create virtual device first so
 
 	![Create device](doc/images/readme_create_device.png)
 
+Then in a dialog
+
 - select Pixel 6
 - click to *Next* button
 - as a system image select *Tiramisu* API Level=33 for with x86_64 ABI (Android 13)
@@ -42,6 +44,7 @@ To run POIView on a develop machine we need to create virtual device first so
 - under *Advanced Settings* increase *Internal Storage* to `4G`
 - and *SD card* size to `2GB`
 - click to *Finish* button
+
 
 You should now see your new divice in a *Device Manager* window this way
 
