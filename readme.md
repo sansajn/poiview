@@ -1,6 +1,6 @@
 # POI view
 
-The app is written in Android studio so just open the project.
+The app is written in Android studio so just open the project, then configure Mapbox tokens, create AVD and you are ready to contribute.
 
 ## Configure tokens
 
@@ -26,9 +26,9 @@ Then configure your public Mapbox token with following steps
 <string name="mapbox_access_token">pk.eyJ1IjoiYWRhbS1obGF2YXRvdmljIiwiYSI6ImNsY291Z3IwMzAyM2MzcHF5dmZ3b3J3OW8ifQ.Dn3oDvBJKVHgOKYyqaZyVA</string>
 ```
 
-## Create VD
+## Create AVD
 
-To run POIView on a develop machine we need to create virtual device first so
+To run POIView on a develop machine we need to create android virtual device (AVD) first so
 
 - in Android Studio click to *Create Device* button in *Device Manager* window
 
