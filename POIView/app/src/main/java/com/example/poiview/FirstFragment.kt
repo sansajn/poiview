@@ -1,24 +1,21 @@
 package com.example.poiview
 
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import android.util.Log
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.view.get
 import com.example.poiview.databinding.FragmentFirstBinding
 import com.example.poiview.db.MainDb
 import com.example.poiview.gallery.PhotoBatch
@@ -26,6 +23,7 @@ import com.example.poiview.gallery.ShowPhoto
 import com.example.poiview.map.GalleryLayer
 import com.example.poiview.map.OnMarkerClick
 import com.example.poiview.map.CycleLayer
+import com.example.poiview.map.LocationLayer
 import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
 import com.mapbox.geojson.Point
@@ -40,6 +38,7 @@ import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import com.mapbox.maps.plugin.gestures.OnMapClickListener
 import com.mapbox.maps.plugin.gestures.addOnMapClickListener
+import com.mapbox.maps.plugin.locationcomponent.location
 import java.util.concurrent.Executors
 import kotlin.system.measureTimeMillis
 
@@ -97,17 +96,29 @@ class FirstFragment : Fragment() {
 //					SampleSymbolLayer(style, _loveIcon)
 //					SampleClusterLayer(style, _starIcon)
 
-					// TODO: shouldn't be permission check part of the listGalleryFolder function?
-					// check for external storage (all files) permission
-					if (checkPermission()) {
-						Log.d(TAG, "external storage permission already granted")
-						afterSdCardPermissionGranted()
+					_locationLayer = LocationLayer(binding.mapView.location) {
+						val mapView = binding.mapView
+						if (!_haveLocation) {  // center only for the first update
+							_haveLocation = true
+							mapView.getMapboxMap().setCamera(CameraOptions.Builder().center(it).build())
+						}
 					}
-					else {
-						Log.d(TAG, "external storage permission not granted, request")
-						requestPermission()
-						// TODO: are we continue from there after permission granted?
+
+					_permissions.requestSdCardPermissionsFor(this@FirstFragment) {
+						updateMap()
+
+						// run scanner services
+						executePhotoGalleryScan()
+						executeCycleActivityScan()
 					}
+
+					_permissions.requestLocationPermissionsFor(this@FirstFragment) {
+						_locationLayer.initFor(this@FirstFragment)
+					}
+
+					Log.d(TAG, "onStyleLoaded() done")
+
+					mapReady()
 				}
 			})
 
@@ -136,24 +147,23 @@ class FirstFragment : Fragment() {
 				}
 			}
 		)
+	}
 
-		val mapUpdateHandler = Handler(Looper.getMainLooper())
-		val updateMapJob = Runnable {
-			updateMap()
-		}
+	private fun mapReady() {
+		with (binding.mapView.getMapboxMap()) {
+			val mapUpdateHandler = Handler(Looper.getMainLooper())
+			val updateMapJob = Runnable {
+				updateMap()
+			}
 
-		map.addOnCameraChangeListener { _ ->
-			// we do not want to trigger update directly, instead update with 1/2s period at maximum
-			if (!mapUpdateHandler.hasCallbacks(updateMapJob)) {
-				mapUpdateHandler.postDelayed(updateMapJob, 500)
+			addOnCameraChangeListener { _ ->
+				// we do not want to trigger update directly, instead update with 1/2s period at maximum
+				if (!mapUpdateHandler.hasCallbacks(updateMapJob)) {
+					mapUpdateHandler.postDelayed(updateMapJob, 500)
+				}
 			}
 		}
 	}
-
-//	private fun logVisibleAreaBounds(map: MapboxMap) {
-//		val visibleAreaBounds = getVisibleAreaBounds(map)
-//		Log.d(TAG, "visible area bounds: min=${visibleAreaBounds.southwest.coordinates()}, max=${visibleAreaBounds.northeast.coordinates()}")
-//	}
 
 	/** @returns visible area geo-rectangle. */
 	private fun getVisibleAreaBounds(map: MapboxMap): CoordinateBounds {
@@ -237,6 +247,8 @@ class FirstFragment : Fragment() {
 	override fun onDestroyView() {
 		super.onDestroyView()
 		// TODO: we should remove all map listeners there e.g. `mapboxMap.removeOnCameraChangeListener(listener)`
+		// TODO: is _binding still valid there?
+		_locationLayer.onDestroy()
 		_binding = null
 	}
 
@@ -281,15 +293,6 @@ class FirstFragment : Fragment() {
 			drawable.setBounds(0, 0, canvas.width, canvas.height)
 			drawable.draw(canvas)
 			bitmap
-		}
-	}
-
-	// permission stuff TODO: move it into own file
-	private fun requestPermission() {
-		Log.d(TAG, "requestPermission(ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)")
-		with(Intent()) {
-			action = Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
-			storageActivityResultLauncher.launch(this)
 		}
 	}
 
@@ -376,14 +379,6 @@ class FirstFragment : Fragment() {
 		executor.shutdown()
 	}
 
-	private fun afterSdCardPermissionGranted() {
-		updateMap()
-
-		// run scanner services
-		executePhotoGalleryScan()
-		executeCycleActivityScan()
-	}
-
 	private fun updateMap() {
 		run {
 			var poiCount = 0
@@ -453,21 +448,6 @@ class FirstFragment : Fragment() {
 		return visibleCycle.size
 	}
 
-	// this is called after external storage access granted
-	private val storageActivityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-		if (checkPermission()) {
-			Log.d(TAG, "external storage permission granted")
-			afterSdCardPermissionGranted()
-		}
-		else {
-			Log.d(TAG, "external storage permission denied")
-		}
-	}
-
-	private fun checkPermission(): Boolean {
-		return Environment.isExternalStorageManager()
-	}
-
 	companion object {
 		const val TAG = "FirstFragment"
 	}
@@ -480,4 +460,10 @@ class FirstFragment : Fragment() {
 	private lateinit var _jewelryIcon: Bitmap
 	private lateinit var _galleryLayer: GalleryLayer
 	private lateinit var _tripLayer: CycleLayer
+	private lateinit var _locationLayer: LocationLayer
+
+	private val _permissions = Permissions(this)
+
+	// Location related stuff
+	private var _haveLocation = false
 }

@@ -40,3 +40,16 @@ WHERE NOT (maxLon < 15.0471172 OR minLon > 15.1413058 OR
 ```
 
 where again `(15.0471172, 50.6991692)`, `(15.1413058, 50.7888681)` points represents geo-rectangle.
+
+# Photo gallery
+
+## Photo gallery
+
+`shrink.sh`: Helper script to shrink gallery photos (to 1/5 of size) in a current directory. Just run
+
+```bash
+./shrink.sh
+```
+
+> based on imagemagick package
+
