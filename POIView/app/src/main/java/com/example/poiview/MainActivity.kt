@@ -1,5 +1,6 @@
 package com.example.poiview
 
+import android.content.Context
 import android.os.Bundle
 import com.google.android.material.snackbar.Snackbar
 import androidx.appcompat.app.AppCompatActivity
@@ -10,6 +11,10 @@ import androidx.navigation.ui.setupActionBarWithNavController
 import android.view.Menu
 import android.view.MenuItem
 import com.example.poiview.databinding.ActivityMainBinding
+import org.acra.ACRA
+import org.acra.config.CoreConfigurationBuilder
+import org.acra.data.StringFormat
+import org.acra.ktx.initAcra
 
 class MainActivity : AppCompatActivity() {
 
@@ -18,6 +23,12 @@ class MainActivity : AppCompatActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		// crash logging into /data/data/app_ACRA-approved directory
+		application.initAcra {
+			buildConfigClass = BuildConfig::class.java
+			reportFormat = StringFormat.JSON
+		}
 
 		binding = ActivityMainBinding.inflate(layoutInflater)
 		setContentView(binding.root)
