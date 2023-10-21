@@ -5,9 +5,8 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.fragment.app.Fragment
 import com.example.poiview.db.MainDb
-import com.example.poiview.FirstFragment
+import com.example.poiview.MapFragment
 import java.io.File
-import java.lang.Exception
 import java.nio.file.Paths
 import kotlin.system.measureTimeMillis
 
@@ -79,7 +78,7 @@ class PhotoBatch(private val parentFragment: Fragment, private val db: MainDb) {
 			}
 		}
 
-		Log.d(FirstFragment.TAG, "listing internal gallery folder (${galleryFolder.absolutePath}): ${elapsed}ms")
+		Log.d(MapFragment.TAG, "listing internal gallery folder (${galleryFolder.absolutePath}): ${elapsed}ms")
 
 		return result
 	}
@@ -119,7 +118,7 @@ class PhotoBatch(private val parentFragment: Fragment, private val db: MainDb) {
 	private var _batchId = 0
 
 	companion object {
-		val TAG = "GalleryPhotoBatch"
+		val TAG = "PhotoBatch"
 	}
 
 	init {

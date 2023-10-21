@@ -1,3 +1,12 @@
+# About
+
+Application Database
+	Sample data visualisation
+	Path generation
+	Queries
+Photo gallery
+
+
 # Application Database
 
 Run
@@ -12,9 +21,25 @@ command to create test (sqlite) database `test.db`.
 
 There are two tables there *poi* and *gallery*. *Poi* table is meant to store POIs and *gallery* is meant for photos (with GPS data) from phone gallery.
 
+> TODO: there is also cycle database there ...
+
 ## Sample data visualisation
 
-Open `samples.html` in a web-browser.
+Open `samples.html` file in a web-browser.
+
+## Path generation
+
+There is tool to generate pathes, open `pathgen.html` and click on map to create desired path (click to path point to delete the point). Path coordinates are dumped into browser console as
+
+```js
+path = [
+	[lng, lat], 
+	...
+]
+```
+
+variable (JS array).
+
 
 ## Queries
 

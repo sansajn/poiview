@@ -24,7 +24,7 @@ class GpxLogs(private val parentFragment: Fragment) {
 
 		// TODO: for now just take the first one SD Card in system
 		val sdCardTripLogPath = "/storage/${sdCardVolumes[0].uppercase()}/trip_logs"
-		Log.d(FirstFragment.TAG, "sdCardTripLogPath=$sdCardTripLogPath")
+		Log.d(MapFragment.TAG, "sdCardTripLogPath=$sdCardTripLogPath")
 
 		val result = arrayListOf<String>()
 

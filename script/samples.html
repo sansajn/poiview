@@ -20,7 +20,7 @@ body { margin: 0; padding: 0; }
 
 <script>
 	// array of [lon, lat] pairs
-	const galleryPos = [
+	const day1 = [
 		[15.0505333, 50.7888681],
 		[15.0505714, 50.7823372],
 		[15.0471172, 50.7726478],
@@ -33,9 +33,23 @@ body { margin: 0; padding: 0; }
 		[15.1413058, 50.7085036]
 	]
 
-	const centerPos = galleryPos[4]
+	const day2 = [
+		[15.058683875152184, 50.78586129933609],
+		[15.055410817714716, 50.775168724244],
+		[15.047500928906288, 50.763956141091455],
+		[15.060593158657781, 50.75377623867834],
+		[15.068230292678606, 50.74911690068552],
+		[15.078867729352226, 50.745147469178676],
+		[15.078049464992489, 50.73841592483285],
+		[15.074230897981323, 50.733755058014935],
+		[15.068503047466123, 50.726676558487156],
+		[15.070139576184147, 50.72115113274285],
+		[15.089505166024452, 50.70474368638162]
+	]
 
-	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRhbS1obGF2YXRvdmljIiwiYSI6ImNsYXdicHJ5eTBkc2ozb2xpcTliNnhxNDMifQ.zq11onVb-SAvtFeApMhHAg';
+	const centerPos = day1[4]
+
+	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRhbS1obGF2YXRvdmljIiwiYSI6ImNsbm9uM20wMDBoejIyaXM2N2o0Y3JvM24ifQ.rbAnW0wQRVTQDMlt5z5WUA'
 	const map = new mapboxgl.Map({
 		container: 'map', // div container ID
 		style: 'mapbox://styles/mapbox/streets-v12', // style URL
@@ -43,39 +57,53 @@ body { margin: 0; padding: 0; }
 		zoom: 12 // starting zoom
 	})
 
-	// create markers
-	const markers = galleryPos.map((pos, idx) => {
-		const popup = new mapboxgl.Popup({offset:25})
-			.setText(`position-idx: ${idx}`)
+	dayPathes = []  // to store day pathes
 
-		return new mapboxgl.Marker()
-			.setLngLat(pos)
-			.setPopup(popup)
-			.addTo(map)
-	})
+	function drawDayPath(day, color='black') {
+		// create markers
+		const markers = day.map((pos, idx) => {
+			const popup = new mapboxgl.Popup({offset:25})
+				.setText(`position-idx: ${idx}`)
 
-	const galleryBBox = turf.bboxPolygon(
-		turf.bbox(turf.lineString(galleryPos)))
-
-	console.info(`gallery bounding box: [${galleryBBox.bbox}] as (lon,lat) pairs`)
-
-	map.on('load', () => {
-		map.addSource('galleryBBox', {  // source for gallery POIs bounding box
-			type: 'geojson',
-			data: galleryBBox
+			return new mapboxgl.Marker()
+				.setLngLat(pos)
+				.setPopup(popup)
+				.addTo(map)
 		})
 
-		map.addLayer({  // layer to show gallery POIs bounding box
-			id: 'galleryBBoxLayer',
-			type: 'fill',
-			source: 'galleryBBox',
+		let path = turf.lineString(day, {'color':color})
+		dayPathes.push(path)
+
+		const dayBBox = turf.bboxPolygon(
+			turf.bbox(path))
+
+		console.info(`day bounding box: [${dayBBox.bbox}] as (lon,lat) pairs`)
+
+		map.getSource('pathes').setData(turf.featureCollection(dayPathes))  // update path data
+
+		return markers
+	}
+
+	map.on('load', () => {
+		map.addSource('pathes', {  // source for to show pathes
+			type: 'geojson',
+			data: dayPathes
+		})
+
+		map.addLayer({  // layer to show day pathes
+			id: 'pathes-layer',
+			type: 'line',
+			source: 'pathes',
 			paint: {
-				'fill-color': '#ff0000',
-				'fill-opacity': 0.5
+				'line-color': ['get', 'color'],  // use 'color' property as path color
+				'line-width': 2
 			}
 		})
 
 		map.setFog({})
+
+		drawDayPath(day1, 'red')
+		drawDayPath(day2, 'blue')
 	})
 </script>
  

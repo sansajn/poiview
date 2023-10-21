@@ -15,6 +15,7 @@ import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource
 import com.mapbox.maps.extension.style.sources.getSource
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.system.measureTimeMillis
 
 /** Layer to show cycling activities.
@@ -40,10 +41,11 @@ class CycleLayer(private val mapStyle: Style) {
 
 		executor.execute {  // running in a separate thread
 			// TODO: we want some kind of continues result delivery there because for now result are delivered after processing all log files and this can take >5s
-			with (_loadDataJobRunning) {
-				if (get())
-					Log.w(TAG, "two or more parallel GPX data loading jobs are running")
-				set(true)
+			with (_loadDataJobCounter) {
+				with (incrementAndGet()) {
+					if (this > 1)
+						Log.w(TAG, "$this parallel GPX data loading jobs are running")
+				}
 			}
 
 			// prepare new features with `path` property set to GPX file path
@@ -76,7 +78,7 @@ class CycleLayer(private val mapStyle: Style) {
 				notifyNewFeaturesReady(features, gpxBatchSet)
 			}
 
-			_loadDataJobRunning.set(false)
+			_loadDataJobCounter.decrementAndGet()
 		}
 	}
 
@@ -120,7 +122,7 @@ class CycleLayer(private val mapStyle: Style) {
 
 	private var _prevGpxBatchSet = setOf<String>()  // list of cycling activities shown by previous showTrip() call
 	private var _features = FeatureCollection.fromFeatures(listOf<Feature>())  // feature collection shown in map
-	private val _loadDataJobRunning = AtomicBoolean(false)  // serves to detect parallel load data jobs
+	private val _loadDataJobCounter = AtomicInteger(0)  // load data job counter to figure out number of parallel jobs running (the goal is to have just one load data job at time)
 
 	init {
 		val source = GeoJsonSource(GeoJsonSource.Builder(SOURCE_ID)).apply {

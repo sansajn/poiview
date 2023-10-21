@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- crash logs as files
+- current user location (GPS)
+- photos are now grouped into days (by line) on map
+- can process/show all cycling logs
 - only visible POIs are shown
 - can show GPX logs
 - can process whole photo gallery in non blocking way (>6k photos)
@@ -25,4 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deprecated
 ### Removed
+
+- AppBar from main activity
+- floating email button from main activity
+
 ### Fixed

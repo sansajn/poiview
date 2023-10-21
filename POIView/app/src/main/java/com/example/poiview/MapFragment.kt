@@ -13,25 +13,24 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.appcompat.content.res.AppCompatResources
-import androidx.core.view.get
-import com.example.poiview.databinding.FragmentFirstBinding
+import androidx.lifecycle.lifecycleScope
+import com.example.poiview.databinding.FragmentMapBinding
 import com.example.poiview.db.MainDb
 import com.example.poiview.gallery.PhotoBatch
 import com.example.poiview.gallery.ShowPhoto
 import com.example.poiview.map.GalleryLayer
 import com.example.poiview.map.OnMarkerClick
 import com.example.poiview.map.CycleLayer
+import com.example.poiview.map.DayLayer
 import com.example.poiview.map.LocationLayer
 import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.CoordinateBounds
-import com.mapbox.maps.MapboxMap
-import com.mapbox.maps.RenderedQueryGeometry
-import com.mapbox.maps.RenderedQueryOptions
 import com.mapbox.maps.Style
 import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
@@ -39,15 +38,17 @@ import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import com.mapbox.maps.plugin.gestures.OnMapClickListener
 import com.mapbox.maps.plugin.gestures.addOnMapClickListener
 import com.mapbox.maps.plugin.locationcomponent.location
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
 import kotlin.system.measureTimeMillis
 
-/**
- * Fragment to show POIs on mapview.
- */
-class FirstFragment : Fragment() {
+/** Fragment to show MapView with photo gallery and cycle activities. */
+class MapFragment : Fragment() {
 
-	private var _binding: FragmentFirstBinding? = null
+	private var _binding: FragmentMapBinding? = null
 
 	// This property is only valid between onCreateView and
 	// onDestroyView.
@@ -58,7 +59,7 @@ class FirstFragment : Fragment() {
 		savedInstanceState: Bundle?
 	): View? {
 
-		_binding = FragmentFirstBinding.inflate(inflater, container, false)
+		_binding = FragmentMapBinding.inflate(inflater, container, false)
 		return binding.root
 	}
 
@@ -82,7 +83,7 @@ class FirstFragment : Fragment() {
 				override fun onStyleLoaded(style: Style) {
 					Log.d(TAG, "map loaded")
 					_galleryLayer = GalleryLayer(style, _photoIcon,
-						ShowPhoto(_db!!, this@FirstFragment)
+						ShowPhoto(_db!!, this@MapFragment)
 					)
 
 					val elapsedPois = measureTimeMillis {
@@ -91,6 +92,7 @@ class FirstFragment : Fragment() {
 					Log.d(TAG, "showing POIs: ${elapsedPois}ms")
 
 					_tripLayer = CycleLayer(style)
+					_dayLayer = DayLayer(style)
 
 //					SampleLineLayer(style)
 //					SampleSymbolLayer(style, _loveIcon)
@@ -104,7 +106,7 @@ class FirstFragment : Fragment() {
 						}
 					}
 
-					_permissions.requestSdCardPermissionsFor(this@FirstFragment) {
+					_permissions.requestSdCardPermissionsFor(this@MapFragment) {
 						updateMap()
 
 						// run scanner services
@@ -112,8 +114,8 @@ class FirstFragment : Fragment() {
 						executeCycleActivityScan()
 					}
 
-					_permissions.requestLocationPermissionsFor(this@FirstFragment) {
-						_locationLayer.initFor(this@FirstFragment)
+					_permissions.requestLocationPermissionsFor(this@MapFragment) {
+						_locationLayer.initFor(this@MapFragment)
 					}
 
 					Log.d(TAG, "onStyleLoaded() done")
@@ -125,22 +127,16 @@ class FirstFragment : Fragment() {
 		map.addOnMapClickListener(
 			object : OnMapClickListener {
 				override fun onMapClick(point: Point): Boolean {
-					// TODO: get list of clicked features ...
-					val screenPoint = map.pixelForCoordinate(point)
+					val mapView = binding.mapView
+					Map(map, mapView.width, mapView.height).featureOn(point, GalleryLayer.LAYER_ID)
+						.thenAccept { clickedFeature ->
+							clickedFeature?.let {
+								_galleryLayer.onPoiClicked(it)
+							}
+						}
 
-					map.queryRenderedFeatures(
-						RenderedQueryGeometry(screenPoint),
-						RenderedQueryOptions(listOf(GalleryLayer.LAYER_ID), null)
-					) {
-
-						if (!it.isValue || it.value!!.isEmpty())
-							return@queryRenderedFeatures
-
-						Log.d(TAG, it.value.toString())
-
-						val selectedFeature = it.value!![0].feature
-						_galleryLayer.onPoiClicked(selectedFeature)
-					}
+					// TODO: just for debug purpose
+					checkFeaturesOnScreen()
 
 					Log.d(TAG, "map clicked ...")
 					return true
@@ -150,6 +146,7 @@ class FirstFragment : Fragment() {
 	}
 
 	private fun mapReady() {
+		// TODO: I need this@with so it would be cool to map this to map
 		with (binding.mapView.getMapboxMap()) {
 			val mapUpdateHandler = Handler(Looper.getMainLooper())
 			val updateMapJob = Runnable {
@@ -163,15 +160,43 @@ class FirstFragment : Fragment() {
 				}
 			}
 		}
+
+		// DEBUG: is there to understand how coroutines can be used in app
+		checkFeaturesOnScreen()
 	}
 
-	/** @returns visible area geo-rectangle. */
-	private fun getVisibleAreaBounds(map: MapboxMap): CoordinateBounds {
-		val camOpts = CameraOptions.Builder()
-			.zoom(map.cameraState.zoom)
-			.center(map.cameraState.center)
-			.build()
-		return map.coordinateBoundsForCamera(camOpts)
+	// TODO: debug: is there to understand how coroutines can be used in app
+	// TODO: implement it in Map
+	private fun checkFeaturesOnScreen() {
+		Log.d(TAG, "w=${binding.mapView.width}, h=${binding.mapView.height}")
+
+		// coroutine
+		viewLifecycleOwner.lifecycleScope.launch {
+			withContext(Dispatchers.Main) {
+				// note: not running in UI thread we can use `withContext(Dispatchers.Main) {}`
+				val result = mapFromView(binding.mapView).featuresOnScreenCoro(GalleryLayer.LAYER_ID)
+				Log.d(TAG, "debug: coro@Map found ${result.size} items on screen")
+			}
+		}
+
+		// trying to figure out the way how get data from coroutine
+		val scope = viewLifecycleOwner.lifecycleScope
+		val resultPromise = scope.async {
+			withContext(Dispatchers.Main) {
+				mapFromView(binding.mapView).featuresOnScreenCoro(GalleryLayer.LAYER_ID)
+			}
+		}
+
+		scope.launch {
+			val result = resultPromise.await()
+			Log.d(TAG, "debug: coro@Map2 found ${result.size} items on screen")
+		}
+
+		// callback
+		mapFromView(binding.mapView).featuresOnScreen(GalleryLayer.LAYER_ID)
+			.thenAccept {
+				Log.d(TAG, "debug: feature@Map found ${it.size} items on screen")
+			}
 	}
 
 	private fun showPois() {
@@ -180,7 +205,6 @@ class FirstFragment : Fragment() {
 		val idColIdx = poiCursor.getColumnIndex("id")
 		val lonColIdx = poiCursor.getColumnIndex("lon")
 		val latColIdx = poiCursor.getColumnIndex("lat")
-		val nameColIdx = poiCursor.getColumnIndex("name")
 
 		// check records
 		if (poiCursor.moveToFirst()) {
@@ -226,6 +250,14 @@ class FirstFragment : Fragment() {
 				val lon = galleryCursor.getDouble(lonColIdx)  // TODO: what is returned for NULL record values
 				val lat = galleryCursor.getDouble(latColIdx)
 				val id = galleryCursor.getInt(idColIdx)
+
+				// TODO: generate warning and do not assert
+				if (lon != 0.0 && lat != 0.0) {
+					val path = with (galleryCursor) {
+						getString(getColumnIndexOrThrow("path"))
+					}
+					Log.w(TAG, "null island (0,0) location for id=$id photo ($path), database is expected to not contain null island photos")
+				}
 
 				val poiData = JsonObject().apply {
 					add("table", JsonPrimitive("gallery"))
@@ -321,6 +353,11 @@ class FirstFragment : Fragment() {
 			Log.i(TAG, "gallery: found ${photoCount - beforeScanPhotoCount} new photos")
 			Log.i(TAG, "gallery: photos=$photoCount, photos-with-location=$photoWithLocationCount")
 			Log.i(TAG, "all gallery photos ($photoCount) processed: ${takes}ms")
+
+			activity?.runOnUiThread {
+				Toast.makeText(activity, "all gallery photos ($photoCount) processed: ${takes}ms", Toast.LENGTH_SHORT)
+					.show()
+			}
 		}
 
 		executor.shutdown()
@@ -374,7 +411,12 @@ class FirstFragment : Fragment() {
 			val cycleCount = _db!!.cycleCount()
 			Log.i(TAG, "cycle: found ${cycleCount - beforeScanCycleCount} new cycling activities")
 			Log.i(TAG, "all cycling activities ($cycleCount) processed: ${takes}ms")
-		}
+
+			activity?.runOnUiThread {
+				Toast.makeText(activity, "all cycling activities ($cycleCount) processed: ${takes}ms", Toast.LENGTH_SHORT)
+					.show()
+			}
+		}  // executor.execute
 
 		executor.shutdown()
 	}
@@ -385,7 +427,7 @@ class FirstFragment : Fragment() {
 			val takes = measureTimeMillis {
 				poiCount = showVisibleGalleryPois()
 			}
-			Log.d(TAG, "rendering visible gallery pois ($poiCount) takes: ${takes}ms")
+			Log.i(TAG, "rendering gallery POIs ($poiCount): ${takes}ms")
 		}
 
 		run {
@@ -393,19 +435,19 @@ class FirstFragment : Fragment() {
 			val takes = measureTimeMillis {
 				cycleCount = showVisibleCycleActivity()
 			}
-			Log.d(TAG, "rendering visible cycling activities ($cycleCount) takes: ${takes}ms")
+			Log.i(TAG, "rendering cycling activities ($cycleCount): ${takes}ms")
 		}
+
+		showVisibleDays()
 	}
 
 	/** Shows visible gallery-pois.
 	 * @returns number of visible POIs (taken from gallery table) */
 	private fun showVisibleGalleryPois(): Int {
-		val map = binding.mapView.getMapboxMap()
-
-		val visiblePoiIds = with(_db!!.queryGallery(getVisibleAreaBounds(map))) {
+		// TODO: we are working there only with IDs and do not need all table columns
+		val visiblePoiIds = with(_db!!.queryGallery(mapFromView(binding.mapView).visibleAreaBounds())) {
 			if (moveToFirst()) {
 				val idColIdx = getColumnIndex("id")
-
 				val ids = ArrayList<Long>()  // collect ids
 				do {
 					ids.add(getLong(idColIdx))
@@ -415,7 +457,10 @@ class FirstFragment : Fragment() {
 				close()  // close cursor
 				ids
 			}
-			else arrayListOf<Long>()
+			else {
+				close()
+				arrayListOf()
+			}
 		}
 
 		showGalleryPois(visiblePoiIds)  // show only visible gallery-pois
@@ -425,9 +470,7 @@ class FirstFragment : Fragment() {
 	/** Shows visible cycling activities.
 	 * @returns number of visible cycling activities (for logging purpose). */
 	private fun showVisibleCycleActivity(): Int {
-		val map = binding.mapView.getMapboxMap()
-
-		val visibleCycle = with(_db!!.queryCycle(getVisibleAreaBounds(map))) {
+		val visibleCycle = with(_db!!.queryCycle(mapFromView(binding.mapView).visibleAreaBounds())) {
 			if (moveToFirst()) {
 				val logPathColIdx = getColumnIndex("logPath")
 
@@ -448,8 +491,30 @@ class FirstFragment : Fragment() {
 		return visibleCycle.size
 	}
 
+	// TODO: move to Map implementation
+	private fun showVisibleDays() {
+		val scope = viewLifecycleOwner.lifecycleScope
+
+		scope.launch {
+			var dayCount = 0
+
+			val takes = measureTimeMillis {
+				val dayBatch = with(Days(mapFromView(binding.mapView), _db!!)) {
+					visibleDaysOnScreenCoro()
+				}
+				Log.d(TAG, "found ${dayBatch.size} days with two or more photos")
+
+				_dayLayer.showDay(dayBatch)
+
+				dayCount = dayBatch.size
+			}
+
+			Log.i(TAG, "rendering days ($dayCount): ${takes}ms")
+		}
+	}
+
 	companion object {
-		const val TAG = "FirstFragment"
+		const val TAG = "MapFragment"
 	}
 
 	private var _db: MainDb? = null  // TODO: any way to avoid nullable type and var
@@ -461,6 +526,7 @@ class FirstFragment : Fragment() {
 	private lateinit var _galleryLayer: GalleryLayer
 	private lateinit var _tripLayer: CycleLayer
 	private lateinit var _locationLayer: LocationLayer
+	private lateinit var _dayLayer: DayLayer
 
 	private val _permissions = Permissions(this)
 

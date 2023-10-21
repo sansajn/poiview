@@ -1,6 +1,6 @@
 # POI view
 
-The app is written in Android studio so just open the project, then configure Mapbox tokens, create AVD and you are ready to contribute.
+The app is written in Android studio so just open the project, then configure Mapbox tokens, create AVD and you are ready to contribute or just to have fun.
 
 ## Configure tokens
 
@@ -49,3 +49,11 @@ Then in a dialog
 You should now see your new divice in a *Device Manager* window this way
 
 ![AVD result](doc/images/readme_avd.png)
+
+
+## Debugging
+
+Crash logs are collected by ACRA library and by default stored in `/data/data/com.example.poiview/app_ACRA-approved` directory on the device.
+
+> **tip**: we can use *Device Explorer* from *Android Studio*
+

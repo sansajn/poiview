@@ -1,6 +1,5 @@
 package com.example.poiview
 
-import android.content.Context
 import android.os.Bundle
 import com.google.android.material.snackbar.Snackbar
 import androidx.appcompat.app.AppCompatActivity
@@ -10,14 +9,12 @@ import androidx.navigation.ui.navigateUp
 import androidx.navigation.ui.setupActionBarWithNavController
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import com.example.poiview.databinding.ActivityMainBinding
-import org.acra.ACRA
-import org.acra.config.CoreConfigurationBuilder
 import org.acra.data.StringFormat
 import org.acra.ktx.initAcra
 
 class MainActivity : AppCompatActivity() {
-
 	private lateinit var appBarConfiguration: AppBarConfiguration
 	private lateinit var binding: ActivityMainBinding
 
@@ -34,6 +31,7 @@ class MainActivity : AppCompatActivity() {
 		setContentView(binding.root)
 
 		setSupportActionBar(binding.toolbar)
+		binding.toolbar.visibility = View.GONE  // hide AppBar
 
 		val navController = findNavController(R.id.nav_host_fragment_content_main)
 		appBarConfiguration = AppBarConfiguration(navController.graph)
@@ -65,5 +63,9 @@ class MainActivity : AppCompatActivity() {
 		val navController = findNavController(R.id.nav_host_fragment_content_main)
 		return navController.navigateUp(appBarConfiguration)
 				|| super.onSupportNavigateUp()
+	}
+
+	companion object {
+		const val TAG = "MainActivity"
 	}
 }

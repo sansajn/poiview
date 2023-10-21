@@ -35,6 +35,9 @@ class PhotoInfo(private val path: Path) {
 				return null
 			val lat: Double = parseExifGPSCoordinate(latStr, latRef)
 
+			if (lon == 0.0 && lat == 0.0)  // ignore null island locations
+				return null
+
 			return lon to lat
 	}
 
@@ -84,7 +87,7 @@ class PhotoInfo(private val path: Path) {
 	private fun parseExifDateTime(dateTime: String, offset: String): Long {
 		val exifDateTimeFmt = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss")
 		val takenAt = LocalDateTime.parse(dateTime, exifDateTimeFmt)  // local time
-		val utcTimestamp: Long = takenAt.toEpochSecond(ZoneOffset.of(offset)) * 1000L
+		val utcTimestamp: Long = takenAt.toEpochSecond(ZoneOffset.of(offset))
 		return utcTimestamp
 	}
 
