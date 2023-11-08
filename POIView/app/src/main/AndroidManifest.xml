@@ -55,4 +55,7 @@
        Android 10 (API level 29) and higher. -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
+    <!-- TODO: Added there to get ACRA working, but I do not really know whether it is necessary -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
 </manifest>

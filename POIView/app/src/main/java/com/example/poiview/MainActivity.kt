@@ -24,7 +24,7 @@ class MainActivity : AppCompatActivity() {
 		// crash logging into /data/data/app_ACRA-approved directory
 		application.initAcra {
 			buildConfigClass = BuildConfig::class.java
-			reportFormat = StringFormat.JSON
+			reportFormat = StringFormat.KEY_VALUE_LIST
 		}
 
 		binding = ActivityMainBinding.inflate(layoutInflater)

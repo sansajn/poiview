@@ -53,7 +53,7 @@ You should now see your new divice in a *Device Manager* window this way
 
 ## Debugging
 
-Crash logs are collected by ACRA library and by default stored in `/data/data/com.example.poiview/app_ACRA-approved` directory on the device.
+Crash logs are saved to `/storage/self/primary/Android/data/com.example.poiview/files/Documents/` directory as `crash_report_TIMESTAMP.txt` files.
 
-> **tip**: we can use *Device Explorer* from *Android Studio*
+> **tip**: we can use *Device Explorer* from *Android Studio* to access POIView directory or *Total Commander* app
 
