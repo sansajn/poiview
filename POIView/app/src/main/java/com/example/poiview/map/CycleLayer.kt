@@ -14,7 +14,6 @@ import com.mapbox.maps.extension.style.sources.addSource
 import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource
 import com.mapbox.maps.extension.style.sources.getSource
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.system.measureTimeMillis
 
@@ -41,17 +40,17 @@ class CycleLayer(private val mapStyle: Style) {
 
 		executor.execute {  // running in a separate thread
 			// TODO: we want some kind of continues result delivery there because for now result are delivered after processing all log files and this can take >5s
-			with (_loadDataJobCounter) {
-				with (incrementAndGet()) {
-					if (this > 1)
-						Log.w(TAG, "$this parallel GPX data loading jobs are running")
-				}
-			}
+			val id = _loadDataJobCounter.incrementAndGet()
 
 			// prepare new features with `path` property set to GPX file path
 			val features = newGpx.map {
 				var result: Feature
 				val takes = measureTimeMillis {
+					// in case there is something new to show, cancel the current one job
+					val jobCount = _loadDataJobCounter.get()
+					if (jobCount > id)
+						return@map emptyFeature()
+
 					val log = GpxLog(it)
 					if (!log.isValid()) {
 						Log.d(TAG, "invalid GPX file '$it'")
@@ -74,9 +73,13 @@ class CycleLayer(private val mapStyle: Style) {
 				it.geometry() != null
 			}
 
-			uiThread.post {  // notify new features ready
-				notifyNewFeaturesReady(features, gpxBatchSet)
+			if (id >= _loadDataJobCounter.get()) {  // update only the most current job
+				uiThread.post {  // notify new features ready
+					notifyNewFeaturesReady(features, gpxBatchSet)
+				}
 			}
+			else
+				Log.d(TAG, "show job ($id) canceled")
 
 			_loadDataJobCounter.decrementAndGet()
 		}

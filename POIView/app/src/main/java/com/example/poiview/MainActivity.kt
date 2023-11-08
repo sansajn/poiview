@@ -21,7 +21,7 @@ class MainActivity : AppCompatActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		// crash logging into /data/data/app_ACRA-approved directory
+		// crash logging into /storage/self/primary/Android/data/com.example.poiview/files/Documents, see LocalReportSender implementation
 		application.initAcra {
 			buildConfigClass = BuildConfig::class.java
 			reportFormat = StringFormat.KEY_VALUE_LIST

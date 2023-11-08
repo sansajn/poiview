@@ -251,12 +251,12 @@ class MapFragment : Fragment() {
 				val lat = galleryCursor.getDouble(latColIdx)
 				val id = galleryCursor.getInt(idColIdx)
 
-				// TODO: generate warning and do not assert
-				if (lon != 0.0 && lat != 0.0) {
+				if (lon == 0.0 && lat == 0.0) {
 					val path = with (galleryCursor) {
 						getString(getColumnIndexOrThrow("path"))
 					}
-					Log.w(TAG, "null island (0,0) location for id=$id photo ($path), database is expected to not contain null island photos")
+					Log.w(TAG, "photo ignored, what: null island (0,0) location for id=$id photo ($path)")
+					continue
 				}
 
 				val poiData = JsonObject().apply {
