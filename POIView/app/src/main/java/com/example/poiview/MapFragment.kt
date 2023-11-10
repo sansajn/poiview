@@ -28,6 +28,7 @@ import com.example.poiview.map.DayLayer
 import com.example.poiview.map.LocationLayer
 import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
+import com.mapbox.android.gestures.MoveGestureDetector
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.CoordinateBounds
@@ -36,7 +37,9 @@ import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import com.mapbox.maps.plugin.gestures.OnMapClickListener
+import com.mapbox.maps.plugin.gestures.OnMoveListener
 import com.mapbox.maps.plugin.gestures.addOnMapClickListener
+import com.mapbox.maps.plugin.gestures.addOnMoveListener
 import com.mapbox.maps.plugin.locationcomponent.location
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -143,6 +146,32 @@ class MapFragment : Fragment() {
 				}
 			}
 		)
+
+		// idle detection, call idle 30s we stop moving map
+		val idleHandler = Handler(Looper.getMainLooper())
+		val idleJob = Runnable { idle() }
+
+		map.addOnMoveListener(
+			object: OnMoveListener {
+				override fun onMove(detector: MoveGestureDetector): Boolean {
+					return false
+				}
+
+				override fun onMoveBegin(detector: MoveGestureDetector) {
+					// do nothing
+				}
+
+				override fun onMoveEnd(detector: MoveGestureDetector) {
+					if (!idleHandler.hasCallbacks(idleJob))
+						idleHandler.postDelayed(idleJob, 30000)  // 30s delay
+				}
+			}
+		)
+	}
+
+	/** Idle function for a purpose of calling freeCache for layers. In a current implementation it is run 30s after we stop pan map. */
+	private fun idle() {
+		_tripLayer.freeCache()
 	}
 
 	private fun mapReady() {

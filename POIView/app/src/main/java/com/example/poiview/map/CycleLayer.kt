@@ -13,6 +13,7 @@ import com.mapbox.maps.extension.style.layers.generated.LineLayer
 import com.mapbox.maps.extension.style.sources.addSource
 import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource
 import com.mapbox.maps.extension.style.sources.getSource
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.system.measureTimeMillis
@@ -30,7 +31,6 @@ class CycleLayer(private val mapStyle: Style) {
 			return  // there is nothing new to show
 
 		val uiThread = Handler(Looper.getMainLooper())
-		val executor = Executors.newSingleThreadExecutor()
 
 		/* TODO: instead of executing loading new features directly by executor there
 		    prepare task/job (something) runnable and share it via concurrent queue.
@@ -38,51 +38,63 @@ class CycleLayer(private val mapStyle: Style) {
 		    from the queue. This would allow us later to work only on latest update
 		    requests. */
 
+		val executor = Executors.newSingleThreadExecutor()
+
 		executor.execute {  // running in a separate thread
-			// TODO: we want some kind of continues result delivery there because for now result are delivered after processing all log files and this can take >5s
 			val id = _loadDataJobCounter.incrementAndGet()
 
 			// prepare new features with `path` property set to GPX file path
 			val features = newGpx.map {
+				// TODO: refactor to kotlin more like codes
 				var result: Feature
-				val takes = measureTimeMillis {
-					// in case there is something new to show, cancel the current one job
-					val jobCount = _loadDataJobCounter.get()
-					if (jobCount > id)
-						return@map emptyFeature()
-
-					val log = GpxLog(it)
-					if (!log.isValid()) {
-						Log.d(TAG, "invalid GPX file '$it'")
-						return@map emptyFeature()
-					}
-
-					val route = log.route()
-					if (route.coordinates().size < 2) {
-						Log.d(TAG, "invalid GPX route at least two points expected")
-						return@map emptyFeature()
-					}
-
-					result = Feature.fromGeometry(route).apply {
-						addStringProperty("path", it)
-					}
+				if ( _loadDataJobCounter.get() > id) {  // in case there is something new to show, cancel the current one job
+					_loadDataJobCounter.decrementAndGet()
+					return@execute
 				}
-				Log.d(TAG, "loading '$it': ${takes}ms")
+
+				if (_featureCache.containsKey(it)) { // use cache
+					result = _featureCache.get(it)!!
+					Log.d(TAG, "cached '$it' used")
+				}
+				else {  // create new feature
+					val takes = measureTimeMillis {
+						val log = GpxLog(it)
+						if (!log.isValid()) {
+							Log.d(TAG, "invalid GPX file '$it'")
+							return@map emptyFeature()
+						}
+
+						val route = log.route()
+						if (route.coordinates().size < 2) {
+							Log.d(TAG, "invalid GPX route at least two points expected")
+							return@map emptyFeature()
+						}
+
+						result = Feature.fromGeometry(route).apply {
+							addStringProperty("path", it)
+						}
+					}
+					Log.d(TAG, "loading '$it': ${takes}ms")
+
+					_featureCache.put(it, result)
+				}
 				result
 			}.filter {// filter out empty features
 				it.geometry() != null
 			}
 
-			if (id >= _loadDataJobCounter.get()) {  // update only the most current job
-				uiThread.post {  // notify new features ready
-					notifyNewFeaturesReady(features, gpxBatchSet)
-				}
+			uiThread.post {  // if we got there, notify new features ready
+				notifyNewFeaturesReady(features, gpxBatchSet)
 			}
-			else
-				Log.d(TAG, "show job ($id) canceled")
 
 			_loadDataJobCounter.decrementAndGet()
 		}
+	}
+
+	fun freeCache() {
+		// TODO: we should free cache based on distance from the center of the screen
+		_featureCache.clear()
+		Log.d(TAG, "cache freed")
 	}
 
 	/** @param newFeatures list of new features out of the gpxBatch list to shown on screen.
@@ -126,6 +138,7 @@ class CycleLayer(private val mapStyle: Style) {
 	private var _prevGpxBatchSet = setOf<String>()  // list of cycling activities shown by previous showTrip() call
 	private var _features = FeatureCollection.fromFeatures(listOf<Feature>())  // feature collection shown in map
 	private val _loadDataJobCounter = AtomicInteger(0)  // load data job counter to figure out number of parallel jobs running (the goal is to have just one load data job at time)
+	private var _featureCache = ConcurrentHashMap<String, Feature>()  // cache is used to improve performance during map changes (pan, zoom, ...)
 
 	init {
 		val source = GeoJsonSource(GeoJsonSource.Builder(SOURCE_ID)).apply {
