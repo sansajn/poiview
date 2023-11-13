@@ -3,6 +3,7 @@ package com.example.poiview.map
 import com.mapbox.geojson.Feature
 import com.mapbox.geojson.FeatureCollection
 import com.mapbox.geojson.LineString
+import com.mapbox.maps.LayerPosition
 import com.mapbox.maps.Style
 import com.mapbox.maps.extension.style.expressions.generated.Expression
 import com.mapbox.maps.extension.style.layers.addLayer
@@ -51,7 +52,6 @@ class DayLayer(private val mapStyle: Style) {
 	private val LINE_WIDTH = 3.0
 	private val LINE_COLOR_MIN_LIGHTNESS = 30  // L value from HSL color space
 	private val LINE_COLOR_MAX_LIGHTNESS = 70
-	private val DAY_PALETTE_SIZE = 10
 
 	/* TODO: create palette (for 10 items) by multiplying 25.5 (10% of lightness from HSV color space) to ger lighter color from 30% to 70% */
 
@@ -68,6 +68,7 @@ class DayLayer(private val mapStyle: Style) {
 		with(mapStyle) {
 			addSource(source)
 			addLayer(layer)
+			moveStyleLayer(CycleLayer.LAYER_ID, LayerPosition(null,"building-number-label",null))
 		}
 	}
 }

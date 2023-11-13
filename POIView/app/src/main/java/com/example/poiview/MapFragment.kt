@@ -124,6 +124,14 @@ class MapFragment : Fragment() {
 					Log.d(TAG, "onStyleLoaded() done")
 
 					mapReady()
+
+					// list layer (just for debug purpose)
+					map.getStyle { style ->
+						Log.i(TAG, "layer ids:")
+						style.styleLayers.forEach {
+							Log.i(TAG, "${it.id}")
+						}
+					}
 				}
 			})
 

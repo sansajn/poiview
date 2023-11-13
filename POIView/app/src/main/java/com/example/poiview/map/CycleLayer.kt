@@ -7,6 +7,7 @@ import android.util.Log
 import com.example.poiview.GpxLog
 import com.mapbox.geojson.Feature
 import com.mapbox.geojson.FeatureCollection
+import com.mapbox.maps.LayerPosition
 import com.mapbox.maps.Style
 import com.mapbox.maps.extension.style.layers.addLayer
 import com.mapbox.maps.extension.style.layers.generated.LineLayer
@@ -153,6 +154,7 @@ class CycleLayer(private val mapStyle: Style) {
 		with(mapStyle) {
 			addSource(source)
 			addLayer(layer)
+			moveStyleLayer(LAYER_ID, LayerPosition(null,"building-number-label",null))
 		}
 	}
 }
