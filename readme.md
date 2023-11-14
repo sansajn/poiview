@@ -1,6 +1,8 @@
 # POI view
 
-The app is written in Android studio so just open the project, then configure Mapbox tokens, create AVD and you are ready to contribute or just to have fun.
+POIView app is written in Android studio so just open the project, then configure Mapbox tokens, create AVD and you are ready to contribute or just to have fun with the code.
+
+> see `about.md` for more user related POIView description
 
 ## Configure tokens
 
