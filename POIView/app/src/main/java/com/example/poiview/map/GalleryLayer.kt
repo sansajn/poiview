@@ -10,6 +10,7 @@ import com.mapbox.geojson.Point
 import com.mapbox.maps.Style
 import com.mapbox.maps.extension.style.layers.addLayer
 import com.mapbox.maps.extension.style.layers.generated.SymbolLayer
+import com.mapbox.maps.extension.style.layers.properties.generated.IconAnchor
 import com.mapbox.maps.extension.style.sources.addSource
 import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource
 import com.mapbox.maps.extension.style.sources.getSource
@@ -64,6 +65,7 @@ class GalleryLayer(private val mapStyle: Style, private val poiIcon: Bitmap,
 
 		val layer = SymbolLayer(LAYER_ID, SOURCE_ID).apply {
 			iconImage(ICON_ID)
+			iconAnchor(IconAnchor.BOTTOM)
 		}
 
 		with(mapStyle) {
